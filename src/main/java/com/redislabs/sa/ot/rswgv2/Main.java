@@ -42,6 +42,7 @@ public class Main {
     public static String PAYLOAD_KEY_NAME = "stringOffered";
     public static int ADD_ON_DELTA_FOR_WORKER_NAME = 0;
     public static boolean VERBOSE = false;
+    public static boolean SHOULD_TRIM_STREAM = false;
 
     public static void main(String [] args){
         ArrayList<String> argList = null;
@@ -92,6 +93,10 @@ public class Main {
                 int argIndex = argList.indexOf("--startreaper");
                 IS_REAPER_ACTIVE = Boolean.parseBoolean(argList.get(argIndex + 1));
             }
+            if (argList.contains("--shouldtrimstream")) {
+                int argIndex = argList.indexOf("--shouldtrimstream");
+                SHOULD_TRIM_STREAM = Boolean.parseBoolean(argList.get(argIndex + 1));
+            }
             if (argList.contains("--writerbatchsize")) {
                 int argIndex = argList.indexOf("--writerbatchsize");
                 WRITER_BATCH_SIZE = Integer.parseInt(argList.get(argIndex + 1));
@@ -140,6 +145,16 @@ public class Main {
                 String workerName = "worker"+(w+ADD_ON_DELTA_FOR_WORKER_NAME);
                 redisStreamWorkerGroupHelper.namedGroupConsumerStartListening(workerName,processor);
             }
+        }
+        if(IS_REAPER_ACTIVE){
+            StreamReaper streamReaper = new StreamReaper().setForProcessingStreamKeyName(STREAM_NAME)
+                    .setOutputStreamName(RESULTS_STREAM_NAME).setShouldTrimOutPutStream(SHOULD_TRIM_STREAM)
+                    .setConsumerGroupName(CONSUMER_GROUP_NAME)
+                    .setSleepTime(30000)
+                    .setJedisConnectionHelper(jedisConnectionHelper.getPooledJedis())
+                    .setPayloadKeyName(PAYLOAD_KEY_NAME)
+                    .setVerbose(VERBOSE);
+            streamReaper.kickOffStreamReaping(60000);
         }
     }
 
