@@ -4,6 +4,7 @@ import com.redislabs.sa.ot.streamutils.RedisStreamWorkerGroupHelper;
 import com.redislabs.sa.ot.streamutils.StreamEventMapProcessor;
 import java.util.ArrayList;
 import java.util.Arrays;
+import com.redislabs.sa.ot.util.JedisConnectionHelper;
 
 /**
  * The program demonstrates writing and processing events using Redis Streams
@@ -112,7 +113,7 @@ public class Main {
                 WORKER_SLEEP_TIME = Integer.parseInt(argList.get(argIndex + 1));
             }
         }
-        JedisConnectionHelper jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password);
+        JedisConnectionHelper jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password,500);
         //testConnection(jedisConnectionHelper);
 
         if(HOW_MANY_ENTRIES>0){ //we will be writing some entries

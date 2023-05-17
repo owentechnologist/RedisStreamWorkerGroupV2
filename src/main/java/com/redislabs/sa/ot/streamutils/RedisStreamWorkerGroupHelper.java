@@ -1,7 +1,5 @@
 package com.redislabs.sa.ot.streamutils;
 
-import com.redislabs.sa.ot.rswgv2.JedisConnectionHelper;
-import redis.clients.jedis.Connection;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.StreamEntryID;
 import redis.clients.jedis.exceptions.JedisDataException;
