@@ -1,5 +1,7 @@
 package com.redislabs.sa.ot.streamutils;
 
+import com.redislabs.sa.ot.util.JedisConnectionHelper;
+import redis.clients.jedis.Connection;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.StreamEntryID;
 import redis.clients.jedis.exceptions.JedisDataException;
@@ -11,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 public class RedisStreamWorkerGroupHelper {
-    private JedisPooled jedisPooled = null;
+    private JedisConnectionHelper jedisConnectionHelper = null;
 
     private String streamName;
     private String consumerGroupName;
@@ -19,8 +21,8 @@ public class RedisStreamWorkerGroupHelper {
     private long printcounter = 0;
     private boolean verbose = false;
 
-    public RedisStreamWorkerGroupHelper(String streamName, JedisPooled jedisPooled, boolean verbose) {
-        this.jedisPooled = jedisPooled;
+    public RedisStreamWorkerGroupHelper(String streamName, JedisConnectionHelper jedisConnectionHelper, boolean verbose) {
+        this.jedisConnectionHelper = jedisConnectionHelper;
         this.streamName = streamName;
         this.verbose = verbose;
     }
@@ -31,7 +33,7 @@ public class RedisStreamWorkerGroupHelper {
         this.consumerGroupName = consumerGroupName;
         StreamEntryID nextID = StreamEntryID.LAST_ENTRY; //This is the point at which the group begins
         try {
-            String thing = jedisPooled.xgroupCreate(this.streamName, this.consumerGroupName, nextID, true);
+            String thing = jedisConnectionHelper.getPooledJedis().xgroupCreate(this.streamName, this.consumerGroupName, nextID, true);
             System.out.println(this.getClass().getName() + " : Result returned when creating a new ConsumerGroup " + thing);
         } catch (JedisDataException jde) {
             if (jde.getMessage().contains("BUSYGROUP")) {
@@ -56,15 +58,17 @@ public class RedisStreamWorkerGroupHelper {
                 System.out.println("RedisStreamAdapter.namedGroupConsumerStartListening(--> " + consumerName + "  <--): Actively Listening to Stream " + streamName);
                 long counter = 0;
                 Map.Entry<String, StreamEntryID> streamQuery = null;
+                JedisPooled pooledJedis = jedisConnectionHelper.getPooledJedis();
 
                 while (true) {
+
                     //grab one entry from the target stream at a time
                     //block for long time if no entries are immediately available in the stream
                     XReadGroupParams xReadGroupParams = new XReadGroupParams().block(oneDay).count(1);
                     HashMap hashMap = new HashMap();
                     hashMap.put(streamName, StreamEntryID.UNRECEIVED_ENTRY);
                     List<Map.Entry<String, List<StreamEntry>>> streamResult =
-                            jedisPooled.xreadGroup(consumerGroupName, consumerName,
+                            pooledJedis.xreadGroup(consumerGroupName, consumerName,
                                     xReadGroupParams,
                                     (Map<String, StreamEntryID>) hashMap);
                     key = streamResult.get(0).getKey(); // name of Stream
@@ -78,8 +82,8 @@ public class RedisStreamWorkerGroupHelper {
                     lastSeenID = value.getID();
                     streamEventMapProcessor.processStreamEventMap(entry);
 
-                    jedisPooled.xack(key, consumerGroupName, lastSeenID);
-                    jedisPooled.xdel(key, lastSeenID);// delete test
+                    pooledJedis.xack(key, consumerGroupName, lastSeenID);
+                    pooledJedis.xdel(key, lastSeenID);// delete test
                 }
             }
         }).start();

@@ -43,6 +43,7 @@ public class Main {
     public static int ADD_ON_DELTA_FOR_WORKER_NAME = 0;
     public static boolean VERBOSE = false;
     public static boolean SHOULD_TRIM_STREAM = false;
+    public static int connectionPoolSize = 100;
 
     public static void main(String [] args){
         ArrayList<String> argList = null;
@@ -76,6 +77,10 @@ public class Main {
             if (argList.contains("--port")) {
                 int argIndex = argList.indexOf("--port");
                 port = Integer.parseInt(argList.get(argIndex + 1));
+            }
+            if (argList.contains("--connectionpoolsize")) {
+                int argIndex = argList.indexOf("--connectionpoolsize");
+                connectionPoolSize = Integer.parseInt(argList.get(argIndex + 1));
             }
             if (argList.contains("--username")) {
                 int argIndex = argList.indexOf("--username");
@@ -118,7 +123,7 @@ public class Main {
                 WORKER_SLEEP_TIME = Integer.parseInt(argList.get(argIndex + 1));
             }
         }
-        JedisConnectionHelper jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password,500);
+        JedisConnectionHelper jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password,connectionPoolSize);
         //testConnection(jedisConnectionHelper);
 
         if(HOW_MANY_ENTRIES>0){ //we will be writing some entries
@@ -132,12 +137,12 @@ public class Main {
         }
         if(NUMBER_OF_WORKER_THREADS>0){
             RedisStreamWorkerGroupHelper redisStreamWorkerGroupHelper =
-                    new RedisStreamWorkerGroupHelper(STREAM_NAME, jedisConnectionHelper.getPooledJedis(),VERBOSE);
+                    new RedisStreamWorkerGroupHelper(STREAM_NAME, jedisConnectionHelper,VERBOSE);
             redisStreamWorkerGroupHelper.createConsumerGroup(CONSUMER_GROUP_NAME);
             for(int w=0;w<NUMBER_OF_WORKER_THREADS;w++){
                 StreamEventMapProcessor processor =
                         new StreamEventMapProcessorToStream()
-                                .setJedisConnectionHelper(jedisConnectionHelper.getPooledJedis())
+                                .setJedisConnectionHelper(jedisConnectionHelper)
                                 .setPayloadKeyName(PAYLOAD_KEY_NAME)
                                 .setSleepTime(WORKER_SLEEP_TIME)
                                 .setOutputStreamName(RESULTS_STREAM_NAME)
@@ -151,10 +156,12 @@ public class Main {
                     .setOutputStreamName(RESULTS_STREAM_NAME).setShouldTrimOutPutStream(SHOULD_TRIM_STREAM)
                     .setConsumerGroupName(CONSUMER_GROUP_NAME)
                     .setSleepTime(30000)
-                    .setJedisConnectionHelper(jedisConnectionHelper.getPooledJedis())
+                    .setJedisConnectionHelper(jedisConnectionHelper)
                     .setPayloadKeyName(PAYLOAD_KEY_NAME)
                     .setVerbose(VERBOSE);
-            streamReaper.kickOffStreamReaping(60000);
+            streamReaper.setCallbackTarget(streamReaper);
+            System.out.println("\n\tStarting StreamReaper (to collect and process Pending entries\n\n");
+            streamReaper.kickOffStreamReaping(6000);
         }
     }
 

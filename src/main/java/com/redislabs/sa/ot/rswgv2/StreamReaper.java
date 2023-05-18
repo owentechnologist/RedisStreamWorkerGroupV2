@@ -1,6 +1,7 @@
 package com.redislabs.sa.ot.rswgv2;
 
 import com.redislabs.sa.ot.streamutils.StreamEventMapProcessor;
+import com.redislabs.sa.ot.util.JedisConnectionHelper;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.StreamEntryID;
 import redis.clients.jedis.params.XClaimParams;
@@ -32,8 +33,8 @@ public class StreamReaper implements StreamEventMapProcessor {
     private boolean shouldTrim;
 
     //chain these methods to configure various properties
-    public StreamReaper setJedisConnectionHelper(JedisPooled jedisPooled) {
-        this.jedisPooled = jedisPooled;
+    public StreamReaper setJedisConnectionHelper(JedisConnectionHelper jedisConnectionHelper) {
+        this.jedisPooled = jedisConnectionHelper.getPooledJedis();
         return this;
     }
 
@@ -145,47 +146,6 @@ public class StreamReaper implements StreamEventMapProcessor {
         this.callbackTarget = callbackTarget;
     }
 
-    //2023-05-16 adding functionality ....
-    public void reapAway(){
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                String key = "0"; // get all data for this consumer in case it is in recovery mode
-                List<StreamEntry> streamEntryList = null;
-                StreamEntry value = null;
-                StreamEntryID lastSeenID = null;
-                System.out.println("StreamReaper.reapAway() (--> "+consumerGroupName+" Reaper  <--): Actively Listening to Stream " + payloadKeyName);
-                long counter = 0;
-                Map.Entry<String, StreamEntryID> streamQuery = null;
-
-                while (true) {
-                    //grab one entry from the target stream at a time
-                    //block for long time if no entries are immediately available in the stream
-                    XReadGroupParams xReadGroupParams = new XReadGroupParams().block(oneDay).count(1);
-                    HashMap hashMap = new HashMap();
-                    hashMap.put(payloadKeyName, StreamEntryID.UNRECEIVED_ENTRY);
-                    List<Map.Entry<String, List<StreamEntry>>> streamResult =
-                            jedisPooled.xreadGroup(consumerGroupName, consumerGroupName+":Reaper",
-                                    xReadGroupParams,
-                                    (Map<String, StreamEntryID>) hashMap);
-                    key = streamResult.get(0).getKey(); // name of Stream
-                    streamEntryList = streamResult.get(0).getValue(); // we assume simple use of stream with a single update
-                    value = streamEntryList.get(0);// entry written to stream
-                    printMessageSparingly("Consumer " + consumerGroupName+":Reaper" + " of ConsumerGroup " + consumerGroupName + " has received... " + key + " " + value);
-
-                    printcounter++;
-                    Map<String, StreamEntry> entry = new HashMap();
-                    entry.put(key + ":" + value.getID() + ":Reaper", value);
-                    lastSeenID = value.getID();
-                    ((StreamEventMapProcessor)callbackTarget).processStreamEventMap(entry);
-
-                    jedisPooled.xack(key, consumerGroupName, lastSeenID);
-                    jedisPooled.xdel(key, lastSeenID);// delete test
-                }
-            }
-        }).start();
-    }
-
     /*
     This method does two things every 30 seconds:
     1) Executes a call to Xtrim the OUTPUT_STREAM to the most recent 100 entries (assuming one is in use)
@@ -202,22 +162,22 @@ public class StreamReaper implements StreamEventMapProcessor {
                     try{ //pendingMessageTimeout  is modified by caller 'Main'
                         Thread.sleep(pendingMessageTimeout); // default is 60 seconds
                     }catch(InterruptedException ie){}
-                    try (JedisPooled streamReader = jedisPooled) {
+                    //try (JedisPooled streamReader = jedisPooled) {
                         if(shouldTrim) {
                             System.out.println(this.getClass().getName() + " -- Claiming and trimming loop...  attempt # " + counter + "   " + new Date());
                             //trim output stream of any events other than the most recent 100 events
                             XTrimParams xTrimParams = new XTrimParams().maxLen(100);
-                            streamReader.xtrim(outputStreamName, xTrimParams);
+                            jedisPooled.xtrim(outputStreamName, xTrimParams);
                         }
                         try {
-                            StreamPendingSummary streamPendingSummary = streamReader.xpending(forProcessingStreamName, consumerGroupName);
+                            StreamPendingSummary streamPendingSummary = jedisPooled.xpending(forProcessingStreamName, consumerGroupName);
                             System.out.println("We have this many PENDING Entries: " + streamPendingSummary.getTotal());
                             if (streamPendingSummary.getTotal() > 0) {
                                 String consumerID = (String) streamPendingSummary.getConsumerMessageCount().keySet().toArray()[0];
                                 System.out.println("Min ID of the PENDING entries equals: " + streamPendingSummary.getMinId());
                                 System.out.println("consumerID == " + consumerID);
 
-                                List<StreamEntry> streamEntries = streamReader.xclaim(forProcessingStreamName,consumerGroupName,consumerID,30, XClaimParams.xClaimParams(),streamPendingSummary.getMinId());
+                                List<StreamEntry> streamEntries = jedisPooled.xclaim(forProcessingStreamName,consumerGroupName,consumerID,30, XClaimParams.xClaimParams(),streamPendingSummary.getMinId());
 
                                 if (streamEntries.size() > 0) {
                                     System.out.println("We got a live one: " + streamEntries.get(0).getID());
@@ -232,8 +192,8 @@ public class StreamReaper implements StreamEventMapProcessor {
                                         entry.put(forProcessingStreamName+":"+discoveredPendingStreamEntry.getID()+":"+consumerID,discoveredPendingStreamEntry);
                                         ((StreamEventMapProcessor)callbackTarget).processStreamEventMap(entry);
                                     }
-                                    streamReader.xack(forProcessingStreamName, consumerGroupName, discoveredPendingStreamEntry.getID());
-                                    streamReader.xdel(forProcessingStreamName, discoveredPendingStreamEntry.getID());
+                                    jedisPooled.xack(forProcessingStreamName, consumerGroupName, discoveredPendingStreamEntry.getID());
+                                    jedisPooled.xdel(forProcessingStreamName, discoveredPendingStreamEntry.getID());
                                 }
                             }
                         }catch (Throwable t){
@@ -254,7 +214,6 @@ public class StreamReaper implements StreamEventMapProcessor {
                         if(counter==0) {
                             System.out.println("\t>>> Resetting StreamReaper Counter to 0 at " + new Date());
                         }
-                    }
                 }
             }
         }).start();

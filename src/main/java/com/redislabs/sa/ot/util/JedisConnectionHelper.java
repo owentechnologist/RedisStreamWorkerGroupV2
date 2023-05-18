@@ -18,7 +18,7 @@ public class JedisConnectionHelper {
      * @return Pipeline
      */
     public Pipeline getPipeline(){
-        return  new Pipeline(jedisPooled.getPool().getResource());
+        return  new Pipeline(connectionProvider.getConnection());
     }
 
     /**
@@ -27,7 +27,7 @@ public class JedisConnectionHelper {
      * @return Transaction
      */
     public Transaction getTransaction(){
-        return new Transaction(jedisPooled.getPool().getResource());
+        return new Transaction(connectionProvider.getConnection());
     }
 
     /**
@@ -87,7 +87,7 @@ public class JedisConnectionHelper {
                     .connectionTimeoutMillis(30000).timeoutMillis(120000).build(); // timeout and client settings
         }
         GenericObjectPoolConfig<Connection> poolConfig = new ConnectionPoolConfig();
-        poolConfig.setMaxIdle(10);
+        poolConfig.setMaxIdle(1);
         poolConfig.setMaxTotal(maxConnections);
         poolConfig.setMinIdle(1);
         poolConfig.setMaxWait(Duration.ofMinutes(1));

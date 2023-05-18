@@ -1,6 +1,7 @@
 package com.redislabs.sa.ot.rswgv2;
 import com.redislabs.sa.ot.streamutils.StreamEventMapProcessor;
 
+import com.redislabs.sa.ot.util.JedisConnectionHelper;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.StreamEntryID;
 import redis.clients.jedis.resps.StreamEntry;
@@ -26,10 +27,12 @@ public class StreamEventMapProcessorToStream implements StreamEventMapProcessor 
     private String outputStreamName = null;
     private String payloadKeyName = "stringOffered";
     private boolean verbose = false;
+    private JedisConnectionHelper jedisConnectionHelper = null;
 
     //chain these methods to configure various properties
-    public StreamEventMapProcessorToStream setJedisConnectionHelper(JedisPooled jedisPooled) {
-        this.jedisPooled = jedisPooled;
+    public StreamEventMapProcessorToStream setJedisConnectionHelper(JedisConnectionHelper jedisConnectionHelper) {
+        this.jedisConnectionHelper = jedisConnectionHelper;
+        jedisPooled = jedisConnectionHelper.getPooledJedis();
         return this;
     }
 
@@ -98,7 +101,7 @@ public class StreamEventMapProcessorToStream implements StreamEventMapProcessor 
             map.put("calc_result", calcString);
             map.put(Runtime.getRuntime().toString()+"_Counter",""+counter.incrementAndGet());
             map.put("EntryProvenanceMetaData",originalId);
-            jedisPooled.xadd(outputStreamName, StreamEntryID.NEW_ENTRY,map);
+            jedisConnectionHelper.getPooledJedis().xadd(outputStreamName, StreamEntryID.NEW_ENTRY,map);
         } catch (Throwable t) {
             System.out.println("WARNING:");
             t.printStackTrace();
