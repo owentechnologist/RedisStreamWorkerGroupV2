@@ -59,14 +59,16 @@ public class StreamWriter {
                     totalWrittenCounter=totalWrittenCounter+batchSize;
                     if(totalWrittenCounter%1000 == 0){
                         //check for new StreamName (old one is getting old)
-                        long ttl = 0;
-                        Response<Long> secondsLeftForStream  = jedisPipeline.ttl(streamName);
+                        long slength = 0;
+                        Response<Long> secondsLeftForStream  = jedisPipeline.xlen(streamName);
                         jedisPipeline.sync();
-                        ttl = secondsLeftForStream.get().longValue();
-                        if(ttl<60){
+                        slength = secondsLeftForStream.get().longValue();
+                        //FIXME: hard-coded value for stream-length:
+                        if(slength>10000000){
                             //need to create a new key and start writing to it instead of the old one
-                            System.out.println("[StreamWriter] asking for new Active StreamKey --> TTL on "+streamName+" : --> "+ttl);
-                            streamName = StreamLifecycleManager.makeSecondaryStream();
+                            System.out.println("[StreamWriter] asking for new Active StreamKey --> streamLength on "+streamName+" : --> "+slength);
+                            streamName = StreamLifecycleManager.makeNewStreamForTopic();
+                            System.out.println("[StreamWriter] now writing to stream called: "+streamName);
                         }
                     }
                     try{

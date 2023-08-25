@@ -7,8 +7,7 @@ import java.util.List;
 
 public class StreamLifecycleManager {
 
-
-    public static String makeSecondaryStream(){
+    public static String makeNewStreamForTopic(){
         Pipeline pipeline = Main.jedisConnectionHelper.getPipeline();
         JedisPooled redis = Main.jedisConnectionHelper.getPooledJedis();
         String topic = Main.TOPIC;
