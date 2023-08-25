@@ -4,7 +4,6 @@ import com.redislabs.sa.ot.streamutils.RedisStreamWorkerGroupHelper;
 import com.redislabs.sa.ot.streamutils.StreamEventMapProcessor;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 import com.redislabs.sa.ot.util.JedisConnectionHelper;
 import redis.clients.jedis.*;
@@ -50,6 +49,7 @@ public class Main {
     public static String TOPIC = "X:FOR_PROCESSING{1}";
     public static String STREAM_READ_START = String.valueOf(StreamEntryID.LAST_ENTRY); // This equals "$"
     public static int connectionPoolSize = 100;
+    public static JedisConnectionHelper jedisConnectionHelper = null;
 
     public static void main(String [] args){
         ArrayList<String> argList = null;

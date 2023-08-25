@@ -7,6 +7,22 @@ import java.util.List;
 
 public class StreamLifecycleManager {
 
+
+    public static String makeSecondaryStream(){
+        Pipeline pipeline = Main.jedisConnectionHelper.getPipeline();
+        JedisPooled redis = Main.jedisConnectionHelper.getPooledJedis();
+        String topic = Main.TOPIC;
+        Response<List<String>> redisTime = pipeline.time();
+        pipeline.sync();
+        String ts = redisTime.get().get(0);
+        ts+=redisTime.get().get(1);
+        System.out.println("Redis Time: --> "+ts);
+        pipeline.close();
+        String newStreamName = topic+":"+ts;
+        redis.lpush(topic,newStreamName);
+        return newStreamName;
+    }
+
     // only need to set TTL on the current active topic stream
     // when it goes away - then there is a chance to set TTL on the next Active Topic stream
     public static void setTTLSecondsForTopicActiveStream(JedisConnectionHelper helper,String topic,long secondsToLive){
@@ -14,6 +30,7 @@ public class StreamLifecycleManager {
         String activeStream = setTopic(helper,topic);
         redis.expire(activeStream,secondsToLive);
     }
+
 
     // make sure there is a redis LIST for the named TOPIC
     // If none exists make one and add the active StreamName to it
