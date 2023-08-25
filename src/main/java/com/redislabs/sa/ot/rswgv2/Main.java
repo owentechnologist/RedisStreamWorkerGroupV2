@@ -155,7 +155,11 @@ public class Main {
         if(argList.contains("--topic")){
             // the caller expects us to have multiple StreamNames sharing the responsibility of a single topic
             // we will put the names into a Redis LIST starting with the TOPIC value
-            STREAM_NAME = StreamLifecycleManager.setTopic(jedisConnectionHelper,TOPIC);
+            if(HOW_MANY_ENTRIES>0) { // we are a publisher
+                STREAM_NAME = StreamLifecycleManager.setTopic(jedisConnectionHelper, TOPIC, true);
+            }else{
+                STREAM_NAME = StreamLifecycleManager.setTopic(jedisConnectionHelper, TOPIC, false);
+            }
         }
         if(argList.contains("--activestreamttlseconds")){
             StreamLifecycleManager.setTTLSecondsForTopicActiveStream(jedisConnectionHelper,TOPIC,STREAM_TTL_SECONDS);
