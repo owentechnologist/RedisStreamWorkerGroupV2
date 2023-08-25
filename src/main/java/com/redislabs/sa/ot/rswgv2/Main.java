@@ -4,7 +4,10 @@ import com.redislabs.sa.ot.streamutils.RedisStreamWorkerGroupHelper;
 import com.redislabs.sa.ot.streamutils.StreamEventMapProcessor;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+
 import com.redislabs.sa.ot.util.JedisConnectionHelper;
+import redis.clients.jedis.*;
 
 /**
  * The program demonstrates writing and processing events using Redis Streams
@@ -43,6 +46,9 @@ public class Main {
     public static int ADD_ON_DELTA_FOR_WORKER_NAME = 0;
     public static boolean VERBOSE = false;
     public static boolean SHOULD_TRIM_STREAM = false;
+    public static long STREAM_TTL_SECONDS = 300;
+    public static String TOPIC = "X:FOR_PROCESSING{1}";
+    public static String STREAM_READ_START = String.valueOf(StreamEntryID.LAST_ENTRY); // This equals "$"
     public static int connectionPoolSize = 100;
 
     public static void main(String [] args){
@@ -54,10 +60,17 @@ public class Main {
 
         if(args.length>0) {
             argList = new ArrayList<>(Arrays.asList(args));
+            // Playing with the concept of a logical TOPIC that is implemented with multiple streams
+            // As time goes by the stream names change and old ones expire due to TTL / expiration
+            if (argList.contains("--topic")) {
+                int argIndex = argList.indexOf("--topic");
+                TOPIC = argList.get(argIndex + 1);
+            }
             if (argList.contains("--verbose")) {
                 int argIndex = argList.indexOf("--verbose");
                 VERBOSE = Boolean.parseBoolean(argList.get(argIndex + 1));
             }
+            // if using TOPIC - the streamname will be given from the StreamLifecycleManager
             if (argList.contains("--streamname")) {
                 int argIndex = argList.indexOf("--streamname");
                 STREAM_NAME = argList.get(argIndex + 1);
@@ -118,14 +131,30 @@ public class Main {
                 int argIndex = argList.indexOf("--howmanyentries");
                 HOW_MANY_ENTRIES = Integer.parseInt(argList.get(argIndex + 1));
             }
+            if (argList.contains("--activestreamttlseconds")) {
+                int argIndex = argList.indexOf("--activestreamttlseconds");
+                STREAM_TTL_SECONDS = Long.parseLong(argList.get(argIndex + 1));
+            }
             if (argList.contains("--workersleeptime")) {
                 int argIndex = argList.indexOf("--workersleeptime");
                 WORKER_SLEEP_TIME = Integer.parseInt(argList.get(argIndex + 1));
             }
+            if (argList.contains("--streamreadstart")) { //This is used when new consumers come online
+                int argIndex = argList.indexOf("--streamreadstart");
+                STREAM_READ_START = argList.get(argIndex + 1);
+                System.out.println("All consumers will begin reading from the target stream using: "+STREAM_READ_START);
+            }
         }
         JedisConnectionHelper jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password,connectionPoolSize);
         //testConnection(jedisConnectionHelper);
-
+        if(argList.contains("--topic")){
+            // the caller expects us to have multiple StreamNames sharing the responsibility of a single topic
+            // we will put the names into a Redis LIST starting with the TOPIC value
+            STREAM_NAME = StreamLifecycleManager.setTopic(jedisConnectionHelper,TOPIC);
+        }
+        if(argList.contains("--activestreamttlseconds")){
+            StreamLifecycleManager.setTTLSecondsForTopicActiveStream(jedisConnectionHelper,TOPIC,STREAM_TTL_SECONDS);
+        }
         if(HOW_MANY_ENTRIES>0){ //we will be writing some entries
             StreamWriter streamWriter =
                     new StreamWriter(STREAM_NAME,jedisConnectionHelper.getPipeline())
@@ -138,7 +167,7 @@ public class Main {
         if(NUMBER_OF_WORKER_THREADS>0){
             RedisStreamWorkerGroupHelper redisStreamWorkerGroupHelper =
                     new RedisStreamWorkerGroupHelper(STREAM_NAME, jedisConnectionHelper,VERBOSE);
-            redisStreamWorkerGroupHelper.createConsumerGroup(CONSUMER_GROUP_NAME);
+            redisStreamWorkerGroupHelper.createConsumerGroup(CONSUMER_GROUP_NAME,STREAM_READ_START);
             for(int w=0;w<NUMBER_OF_WORKER_THREADS;w++){
                 StreamEventMapProcessor processor =
                         new StreamEventMapProcessorToStream()

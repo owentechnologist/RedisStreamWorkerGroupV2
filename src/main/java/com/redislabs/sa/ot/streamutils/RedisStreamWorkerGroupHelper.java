@@ -29,9 +29,14 @@ public class RedisStreamWorkerGroupHelper {
 
     // this classes' constructor determines the target StreamName
     // we need to only provide the consumer group name
-    public void createConsumerGroup(String consumerGroupName) {
+    // streamReadStart will either be:
+    //  "$" for LAST_ENTRY or "0-0" for all Entries from beginning of stream or <TimeStamp>-<SequenceNUM>
+    public void createConsumerGroup(String consumerGroupName,String streamReadStart) {
         this.consumerGroupName = consumerGroupName;
-        StreamEntryID nextID = StreamEntryID.LAST_ENTRY; //This is the point at which the group begins
+        StreamEntryID nextID = new StreamEntryID(streamReadStart); //This is the point at which the group begins
+        if(streamReadStart.equalsIgnoreCase("$")){
+            nextID = StreamEntryID.LAST_ENTRY;
+        }
         try {
             String thing = jedisConnectionHelper.getPooledJedis().xgroupCreate(this.streamName, this.consumerGroupName, nextID, true);
             System.out.println(this.getClass().getName() + " : Result returned when creating a new ConsumerGroup " + thing);
