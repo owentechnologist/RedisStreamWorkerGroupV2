@@ -50,6 +50,7 @@ public class Main {
     public static String STREAM_READ_START = String.valueOf(StreamEntryID.LAST_ENTRY); // This equals "$"
     public static int connectionPoolSize = 100;
     public static JedisConnectionHelper jedisConnectionHelper = null;
+    public static long MAX_STREAM_LENGTH = 1000000;
 
     public static void main(String [] args){
         ArrayList<String> argList = null;
@@ -134,6 +135,10 @@ public class Main {
             if (argList.contains("--activestreamttlseconds")) {
                 int argIndex = argList.indexOf("--activestreamttlseconds");
                 STREAM_TTL_SECONDS = Long.parseLong(argList.get(argIndex + 1));
+            }
+            if (argList.contains("--maxstreamlength")) { // after this length, switch to a new stream
+                int argIndex = argList.indexOf("--maxstreamlength");
+                MAX_STREAM_LENGTH = Long.parseLong(argList.get(argIndex + 1));
             }
             if (argList.contains("--workersleeptime")) {
                 int argIndex = argList.indexOf("--workersleeptime");

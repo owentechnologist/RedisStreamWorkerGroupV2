@@ -63,8 +63,7 @@ public class StreamWriter {
                         Response<Long> secondsLeftForStream  = jedisPipeline.xlen(streamName);
                         jedisPipeline.sync();
                         slength = secondsLeftForStream.get().longValue();
-                        //FIXME: hard-coded value for stream-length:
-                        if(slength>10000000){
+                        if(slength>Main.MAX_STREAM_LENGTH){
                             //need to create a new key and start writing to it instead of the old one
                             System.out.println("[StreamWriter] asking for new Active StreamKey --> streamLength on "+streamName+" : --> "+slength);
                             streamName = StreamLifecycleManager.makeNewStreamForTopic();
