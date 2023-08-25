@@ -52,7 +52,7 @@ public class RedisStreamWorkerGroupHelper {
     // This Method can be invoked multiple times each time with a unique consumerName
     // It assumes The group has been created - now we want a single named consumer to start
     // using 0 will grab any pending messages for that listener in case it failed mid-processing
-    public void namedGroupConsumerStartListening(String consumerName, StreamEventMapProcessor streamEventMapProcessor) {
+    public void namedGroupConsumerStartListening(String consumerName, StreamEventMapProcessor streamEventMapProcessor,boolean shouldTrim) {
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -88,7 +88,9 @@ public class RedisStreamWorkerGroupHelper {
                     streamEventMapProcessor.processStreamEventMap(entry);
 
                     pooledJedis.xack(key, consumerGroupName, lastSeenID);
-                    pooledJedis.xdel(key, lastSeenID);// delete test
+                    if(shouldTrim){
+                        pooledJedis.xdel(key, lastSeenID);// delete test
+                    }
                 }
             }
         }).start();

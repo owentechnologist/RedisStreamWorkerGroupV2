@@ -177,7 +177,7 @@ public class Main {
                                 .setOutputStreamName(RESULTS_STREAM_NAME)
                                 .setVerbose(VERBOSE);
                 String workerName = "worker"+(w+ADD_ON_DELTA_FOR_WORKER_NAME);
-                redisStreamWorkerGroupHelper.namedGroupConsumerStartListening(workerName,processor);
+                redisStreamWorkerGroupHelper.namedGroupConsumerStartListening(workerName,processor,SHOULD_TRIM_STREAM);
             }
         }
         if(IS_REAPER_ACTIVE){

@@ -59,6 +59,7 @@ public class StreamLifecycleManager {
     static boolean foundResult(JedisPooled redis, String topic,String streamName){
         boolean isFirstAndExists=false;
         isFirstAndExists = redis.exists(streamName);
+        System.out.println("SLM.foundResult() "+isFirstAndExists+" "+streamName);
         return isFirstAndExists;
     }
 
