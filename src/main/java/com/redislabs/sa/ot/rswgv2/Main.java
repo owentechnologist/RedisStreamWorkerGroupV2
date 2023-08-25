@@ -145,7 +145,7 @@ public class Main {
                 System.out.println("All consumers will begin reading from the target stream using: "+STREAM_READ_START);
             }
         }
-        JedisConnectionHelper jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password,connectionPoolSize);
+        jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password,connectionPoolSize);
         //testConnection(jedisConnectionHelper);
         if(argList.contains("--topic")){
             // the caller expects us to have multiple StreamNames sharing the responsibility of a single topic
