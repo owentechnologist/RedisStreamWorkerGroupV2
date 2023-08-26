@@ -4,6 +4,7 @@ import com.redislabs.sa.ot.streamutils.RedisStreamWorkerGroupHelper;
 import com.redislabs.sa.ot.streamutils.StreamEventMapProcessor;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.time.format.DateTimeFormatter;
 
 import com.redislabs.sa.ot.util.JedisConnectionHelper;
 import redis.clients.jedis.*;
@@ -58,6 +59,7 @@ public class Main {
         int port = 6379;
         String userName = "default";
         String password = "";
+        String startStatus = "\nLaunching: \nThe local time is now "+java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy, H:mm:ss"));
 
         if(args.length>0) {
             argList = new ArrayList<>(Arrays.asList(args));
@@ -66,6 +68,7 @@ public class Main {
             if (argList.contains("--topic")) {
                 int argIndex = argList.indexOf("--topic");
                 TOPIC = argList.get(argIndex + 1);
+                startStatus+="\nTopic name is - "+TOPIC;
             }
             if (argList.contains("--verbose")) {
                 int argIndex = argList.indexOf("--verbose");
@@ -79,10 +82,12 @@ public class Main {
             if (argList.contains("--resultsstreamname")) {
                 int argIndex = argList.indexOf("--resultsstreamname");
                 RESULTS_STREAM_NAME = argList.get(argIndex + 1);
+                startStatus+="\nResult stream name is - "+RESULTS_STREAM_NAME;
             }
             if (argList.contains("--consumergroupname")) {
                 int argIndex = argList.indexOf("--consumergroupname");
                 CONSUMER_GROUP_NAME = argList.get(argIndex + 1);
+                startStatus+="\nConsumer group name is - "+CONSUMER_GROUP_NAME;
             }
             if (argList.contains("--host")) {
                 int argIndex = argList.indexOf("--host");
@@ -107,22 +112,29 @@ public class Main {
             if (argList.contains("--howmanyworkers")) {
                 int argIndex = argList.indexOf("--howmanyworkers");
                 NUMBER_OF_WORKER_THREADS = Integer.parseInt(argList.get(argIndex + 1));
+                if(NUMBER_OF_WORKER_THREADS>0){
+                    startStatus+="\n# members in group is - "+NUMBER_OF_WORKER_THREADS;
+                }
             }
             if (argList.contains("--startreaper")) {
                 int argIndex = argList.indexOf("--startreaper");
                 IS_REAPER_ACTIVE = Boolean.parseBoolean(argList.get(argIndex + 1));
+                startStatus+="\nThis is a reaper instance ";
             }
             if (argList.contains("--shouldtrimstream")) {
                 int argIndex = argList.indexOf("--shouldtrimstream");
                 SHOULD_TRIM_STREAM = Boolean.parseBoolean(argList.get(argIndex + 1));
+                startStatus+="\nWorkers will delete processed events from topic ";
             }
             if (argList.contains("--writerbatchsize")) {
                 int argIndex = argList.indexOf("--writerbatchsize");
                 WRITER_BATCH_SIZE = Integer.parseInt(argList.get(argIndex + 1));
+                startStatus+="\n{Publishing in batches of "+WRITER_BATCH_SIZE;
             }
             if (argList.contains("--writersleeptime")) {
                 int argIndex = argList.indexOf("--writersleeptime");
                 WRITER_SLEEP_TIME = Integer.parseInt(argList.get(argIndex + 1));
+                startStatus+="\nPublisher will sleep this long between each batch: "+WRITER_SLEEP_TIME;
             }
             if (argList.contains("--addondeltaforworkername")) {
                 int argIndex = argList.indexOf("--addondeltaforworkername");
@@ -131,26 +143,32 @@ public class Main {
             if (argList.contains("--howmanyentries")) {
                 int argIndex = argList.indexOf("--howmanyentries");
                 HOW_MANY_ENTRIES = Integer.parseInt(argList.get(argIndex + 1));
+                startStatus+="\nTotal number this publisher will write to topic is "+HOW_MANY_ENTRIES;
             }
             if (argList.contains("--activestreamttlseconds")) {
                 int argIndex = argList.indexOf("--activestreamttlseconds");
                 STREAM_TTL_SECONDS = Long.parseLong(argList.get(argIndex + 1));
+                startStatus+="\nSeconds this consumer is setting TTL on the stream mapped to topic: "+STREAM_TTL_SECONDS;
             }
             if (argList.contains("--maxstreamlength")) { // after this length, switch to a new stream
                 int argIndex = argList.indexOf("--maxstreamlength");
                 MAX_STREAM_LENGTH = Long.parseLong(argList.get(argIndex + 1));
+                startStatus+="\nPublisher will create a new stream every time one has more entries than "+MAX_STREAM_LENGTH;
             }
             if (argList.contains("--workersleeptime")) {
                 int argIndex = argList.indexOf("--workersleeptime");
                 WORKER_SLEEP_TIME = Integer.parseInt(argList.get(argIndex + 1));
+                startStatus+="\nWorker sleeps between processing messages for "+WORKER_SLEEP_TIME;
             }
             if (argList.contains("--streamreadstart")) { //This is used when new consumers come online
                 int argIndex = argList.indexOf("--streamreadstart");
                 STREAM_READ_START = argList.get(argIndex + 1);
-                System.out.println("All consumers will begin reading from the target stream using: "+STREAM_READ_START);
+                startStatus+="\nAll consumers will begin reading from the target stream using: "+STREAM_READ_START;
             }
         }
         jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password,connectionPoolSize);
+        System.out.println(startStatus+"\n");
+
         //testConnection(jedisConnectionHelper);
         if(argList.contains("--topic")){
             // the caller expects us to have multiple StreamNames sharing the responsibility of a single topic

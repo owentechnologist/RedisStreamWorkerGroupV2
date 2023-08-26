@@ -1,7 +1,5 @@
 package com.redislabs.sa.ot.rswgv2;
 import com.github.javafaker.Faker;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.Pipeline;
 import redis.clients.jedis.Response;
 import redis.clients.jedis.params.XAddParams;
@@ -46,18 +44,10 @@ public class StreamWriter {
             public void run() {
                 Map<String, String> map1 = new HashMap<>();
                 long totalWrittenCounter = 1;
+                long partitionCheckLoopValue = 0;
                 while (true) {
-                    if(totalNumberToWrite-totalWrittenCounter<=batchSize) {
-                        batchSize=(totalNumberToWrite-totalWrittenCounter);
-                    }
-                    for (int batchCounter = 0; batchCounter < batchSize; batchCounter++) {
-                        String payload = faker.name().firstName()+" "+faker.name().lastName()+" "+faker.address().secondaryAddress();
-                        map1.put(payloadKeyName, payload);
-                        jedisPipeline.xadd(streamName, XAddParams.xAddParams(), map1);
-                    }
-                    jedisPipeline.sync();
-                    totalWrittenCounter=totalWrittenCounter+batchSize;
-                    if(totalWrittenCounter%1000 == 0){
+                    //should we partition?
+                    if(partitionCheckLoopValue%1000 == 0){
                         //check for new StreamName (old one is getting old)
                         long slength = 0;
                         Response<Long> secondsLeftForStream  = jedisPipeline.xlen(streamName);
@@ -70,6 +60,16 @@ public class StreamWriter {
                             System.out.println("[StreamWriter] now writing to stream called: "+streamName);
                         }
                     }
+                    if(totalNumberToWrite-totalWrittenCounter<=batchSize) {
+                        batchSize=(totalNumberToWrite-totalWrittenCounter);
+                    }
+                    for (int batchCounter = 0; batchCounter < batchSize; batchCounter++) {
+                        String payload = faker.name().firstName()+" "+faker.name().lastName()+" "+faker.address()+" ro "+faker.address().secondaryAddress();
+                        map1.put(payloadKeyName, payload);
+                        jedisPipeline.xadd(streamName, XAddParams.xAddParams(), map1);
+                    }
+                    jedisPipeline.sync();
+                    totalWrittenCounter=totalWrittenCounter+batchSize;
                     try{
                         Thread.sleep(sleepTime);
                     }catch(InterruptedException ie){}
