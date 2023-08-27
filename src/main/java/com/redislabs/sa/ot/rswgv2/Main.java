@@ -34,7 +34,7 @@ import redis.clients.jedis.*;
 public class Main {
 
     public static String STREAM_NAME = "X:FOR_PROCESSING{1}";
-    public static String RESULTS_STREAM_NAME = "X:PROCESSED_EVENTS{1}";
+    public static String RESULTS_KEY_NAME = "X:PROCESSED_EVENTS{1}";
     public static int NUMBER_OF_WORKER_THREADS = 2;
     public static int WORKER_SLEEP_TIME = 50;//milliseconds
     public static boolean IS_REAPER_ACTIVE=false;
@@ -48,6 +48,7 @@ public class Main {
     public static boolean SHOULD_TRIM_STREAM = false;
     public static long STREAM_TTL_SECONDS = 300;
     public static String TOPIC = "X:FOR_PROCESSING{1}";
+    public static boolean CONSUMER_RESPONSE_IS_A_STREAM = true;
     public static String STREAM_READ_START = String.valueOf(StreamEntryID.LAST_ENTRY); // This equals "$"
     public static int connectionPoolSize = 100;
     public static JedisConnectionHelper jedisConnectionHelper = null;
@@ -79,10 +80,10 @@ public class Main {
                 int argIndex = argList.indexOf("--streamname");
                 STREAM_NAME = argList.get(argIndex + 1);
             }
-            if (argList.contains("--resultsstreamname")) {
-                int argIndex = argList.indexOf("--resultsstreamname");
-                RESULTS_STREAM_NAME = argList.get(argIndex + 1);
-                startStatus+="\nResult stream name is - "+RESULTS_STREAM_NAME;
+            if (argList.contains("--resultskeyname")) {
+                int argIndex = argList.indexOf("--resultskeyname");
+                RESULTS_KEY_NAME = argList.get(argIndex + 1);
+                startStatus+="\nResults key name is - "+ RESULTS_KEY_NAME;
             }
             if (argList.contains("--consumergroupname")) {
                 int argIndex = argList.indexOf("--consumergroupname");
@@ -165,6 +166,15 @@ public class Main {
                 STREAM_READ_START = argList.get(argIndex + 1);
                 startStatus+="\nAll consumers will begin reading from the target stream using: "+STREAM_READ_START;
             }
+            if (argList.contains("--consumerresponseisastream")) { //This is used when new consumers come online
+                int argIndex = argList.indexOf("--consumerresponseisastream");
+                CONSUMER_RESPONSE_IS_A_STREAM = Boolean.parseBoolean(argList.get(argIndex + 1));
+                if(CONSUMER_RESPONSE_IS_A_STREAM) {
+                    startStatus += "\nThese consumers will write Stream responses to: " + RESULTS_KEY_NAME;
+                }else{
+                    startStatus += "\nThese consumers will increment this key as a counter to show work is being done: " + RESULTS_KEY_NAME;
+                }
+            }
         }
         jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password,connectionPoolSize);
         System.out.println(startStatus+"\n");
@@ -196,20 +206,30 @@ public class Main {
                     new RedisStreamWorkerGroupHelper(STREAM_NAME, jedisConnectionHelper,VERBOSE);
             redisStreamWorkerGroupHelper.createConsumerGroup(CONSUMER_GROUP_NAME,STREAM_READ_START);
             for(int w=0;w<NUMBER_OF_WORKER_THREADS;w++){
-                StreamEventMapProcessor processor =
-                        new StreamEventMapProcessorToStream()
-                                .setJedisConnectionHelper(jedisConnectionHelper)
-                                .setPayloadKeyName(PAYLOAD_KEY_NAME)
-                                .setSleepTime(WORKER_SLEEP_TIME)
-                                .setOutputStreamName(RESULTS_STREAM_NAME)
-                                .setVerbose(VERBOSE);
+                StreamEventMapProcessor processor = null;
+                if(CONSUMER_RESPONSE_IS_A_STREAM) {
+                    processor =
+                            new StreamEventMapProcessorToStream()
+                                    .setJedisConnectionHelper(jedisConnectionHelper)
+                                    .setPayloadKeyName(PAYLOAD_KEY_NAME)
+                                    .setSleepTime(WORKER_SLEEP_TIME)
+                                    .setOutputStreamName(RESULTS_KEY_NAME)
+                                    .setVerbose(VERBOSE);
+                }else{
+                    processor = new StreamEventMapProcessorCounterIncr()
+                            .setJedisConnectionHelper(jedisConnectionHelper)
+                            .setPayloadKeyName(PAYLOAD_KEY_NAME)
+                            .setSleepTime(WORKER_SLEEP_TIME)
+                            .setOutputStreamName(RESULTS_KEY_NAME)
+                            .setVerbose(VERBOSE);
+                }
                 String workerName = "worker"+(w+ADD_ON_DELTA_FOR_WORKER_NAME);
                 redisStreamWorkerGroupHelper.namedGroupConsumerStartListening(workerName,processor,SHOULD_TRIM_STREAM);
             }
         }
         if(IS_REAPER_ACTIVE){
             StreamReaper streamReaper = new StreamReaper().setForProcessingStreamKeyName(STREAM_NAME)
-                    .setOutputStreamName(RESULTS_STREAM_NAME).setShouldTrimOutPutStream(SHOULD_TRIM_STREAM)
+                    .setOutputStreamName(RESULTS_KEY_NAME).setShouldTrimOutPutStream(SHOULD_TRIM_STREAM)
                     .setConsumerGroupName(CONSUMER_GROUP_NAME)
                     .setSleepTime(30000)
                     .setJedisConnectionHelper(jedisConnectionHelper)

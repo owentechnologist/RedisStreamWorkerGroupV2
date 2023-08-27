@@ -43,12 +43,12 @@ Instance 2:
 
 Instance 1:
 ```
---howmanyworkers 20 --workersleeptime 10 --streamname X:FOR_PROCESSING{1} --resultsstreamname X:PROCESSED_EVENTS{1}
+--howmanyworkers 20 --workersleeptime 10 --streamname X:FOR_PROCESSING{1} --resultskeyname X:PROCESSED_EVENTS{1}
 ```
 
 Instance 2:
 ```
---howmanyworkers 20 --workersleeptime 10 --streamname X:FOR_PROCESSING{2} --resultsstreamname X:PROCESSED_EVENTS{2}
+--howmanyworkers 20 --workersleeptime 10 --streamname X:FOR_PROCESSING{2} --resultskeyname X:PROCESSED_EVENTS{2}
 ```
 
 
