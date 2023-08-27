@@ -87,7 +87,7 @@ public class JedisConnectionHelper {
                     .connectionTimeoutMillis(30000).timeoutMillis(120000).build(); // timeout and client settings
         }
         GenericObjectPoolConfig<Connection> poolConfig = new ConnectionPoolConfig();
-        poolConfig.setMaxIdle(1);
+        poolConfig.setMaxIdle(100);
         poolConfig.setMaxTotal(maxConnections);
         poolConfig.setMinIdle(1);
         poolConfig.setMaxWait(Duration.ofMinutes(1));

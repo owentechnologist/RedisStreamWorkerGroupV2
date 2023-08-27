@@ -5,7 +5,6 @@ import com.redislabs.sa.ot.util.JedisConnectionHelper;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.StreamEntryID;
 import redis.clients.jedis.params.XClaimParams;
-import redis.clients.jedis.params.XReadGroupParams;
 import redis.clients.jedis.params.XTrimParams;
 import redis.clients.jedis.resps.StreamEntry;
 import redis.clients.jedis.resps.StreamPendingSummary;
@@ -85,7 +84,7 @@ public class StreamReaper implements StreamEventMapProcessor {
 
     @Override
     public void processStreamEventMap(Map<String, StreamEntry> payload) {
-        printMessageSparingly("\nStreamEventMapProcessorToStream.processStreamEventMap()>>\t" + payload.keySet());
+        printMessageSparingly("\nStreamReaper.processStreamEventMap()>>\t" + payload.keySet());
         doSleep(sleepTime); // the point of this is to simulate slower workers
         for( String se : payload.keySet()) {
             printMessageSparingly(payload.get(se).toString());
@@ -193,7 +192,9 @@ public class StreamReaper implements StreamEventMapProcessor {
                                         ((StreamEventMapProcessor)callbackTarget).processStreamEventMap(entry);
                                     }
                                     jedisPooled.xack(forProcessingStreamName, consumerGroupName, discoveredPendingStreamEntry.getID());
-                                    jedisPooled.xdel(forProcessingStreamName, discoveredPendingStreamEntry.getID());
+                                    if(shouldTrim) {
+                                        jedisPooled.xdel(forProcessingStreamName, discoveredPendingStreamEntry.getID());
+                                    }
                                 }
                             }
                         }catch (Throwable t){

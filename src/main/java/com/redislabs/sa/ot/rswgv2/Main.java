@@ -125,7 +125,9 @@ public class Main {
             if (argList.contains("--shouldtrimstream")) {
                 int argIndex = argList.indexOf("--shouldtrimstream");
                 SHOULD_TRIM_STREAM = Boolean.parseBoolean(argList.get(argIndex + 1));
-                startStatus+="\nWorkers will delete processed events from topic ";
+                if(SHOULD_TRIM_STREAM) {
+                    startStatus += "\nWorkers will delete processed events from topic ";
+                }
             }
             if (argList.contains("--writerbatchsize")) {
                 int argIndex = argList.indexOf("--writerbatchsize");
@@ -229,9 +231,10 @@ public class Main {
         }
         if(IS_REAPER_ACTIVE){
             StreamReaper streamReaper = new StreamReaper().setForProcessingStreamKeyName(STREAM_NAME)
-                    .setOutputStreamName(RESULTS_KEY_NAME).setShouldTrimOutPutStream(SHOULD_TRIM_STREAM)
+                    .setOutputStreamName(RESULTS_KEY_NAME)
+                    .setShouldTrimOutPutStream(SHOULD_TRIM_STREAM)//FIXME: reaper applies this to both source and output streams
                     .setConsumerGroupName(CONSUMER_GROUP_NAME)
-                    .setSleepTime(30000)
+                    .setSleepTime(WORKER_SLEEP_TIME)
                     .setJedisConnectionHelper(jedisConnectionHelper)
                     .setPayloadKeyName(PAYLOAD_KEY_NAME)
                     .setVerbose(VERBOSE);
