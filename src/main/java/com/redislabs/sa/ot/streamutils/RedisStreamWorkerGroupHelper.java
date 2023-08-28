@@ -61,21 +61,42 @@ public class RedisStreamWorkerGroupHelper {
                 StreamEntry value = null;
                 StreamEntryID lastSeenID = null;
                 System.out.println("RedisStreamAdapter.namedGroupConsumerStartListening(--> " + consumerName + "  <--): Actively Listening to Stream " + streamName);
-                long counter = 0;
-                Map.Entry<String, StreamEntryID> streamQuery = null;
+                //long counter = 0;
+                //Map.Entry<String, StreamEntryID> streamQuery = null;
                 JedisPooled pooledJedis = jedisConnectionHelper.getPooledJedis();
 
                 while (true) {
-
                     //grab one entry from the target stream at a time
                     //block for long time if no entries are immediately available in the stream
                     XReadGroupParams xReadGroupParams = new XReadGroupParams().block(oneDay).count(1);
                     HashMap hashMap = new HashMap();
                     hashMap.put(streamName, StreamEntryID.UNRECEIVED_ENTRY);
-                    List<Map.Entry<String, List<StreamEntry>>> streamResult =
-                            pooledJedis.xreadGroup(consumerGroupName, consumerName,
-                                    xReadGroupParams,
-                                    (Map<String, StreamEntryID>) hashMap);
+                    List<Map.Entry<String, List<StreamEntry>>> streamResult = null;
+                    try {
+                        streamResult =
+                                pooledJedis.xreadGroup(consumerGroupName, consumerName,
+                                        xReadGroupParams,
+                                        (Map<String, StreamEntryID>) hashMap);
+                    }catch(redis.clients.jedis.exceptions.JedisConnectionException jce){
+                        try{
+                            pooledJedis = jedisConnectionHelper.getPooledJedis();
+                            streamResult =
+                                    pooledJedis.xreadGroup(consumerGroupName, consumerName,
+                                            xReadGroupParams,
+                                            (Map<String, StreamEntryID>) hashMap);
+                        }catch(redis.clients.jedis.exceptions.JedisConnectionException jce2){
+                            if(jce.getMessage().contains("Unexpected end of stream")) {
+                                // Time to move to next stream in LIST
+                                //can't create another group from inside self
+                                // need to send signal to ConsumerGroupGovernor to use:
+                                // getNextAvailableStreamNameForTopic();
+                                System.out.println("FIXME: Send ConsumerGroupGovernor signal to create group for result of SLM.getNextAvailableStreamNameForTopic()");
+                                break; // out of loop? maybe exits process?
+                            }else{
+                                System.out.println("[RedisStreamWorkerGroupHelper.namedGroupConsumerStartListening()] hit a snag ..."+jce.getMessage());
+                            }
+                        }
+                    }
                     key = streamResult.get(0).getKey(); // name of Stream
                     streamEntryList = streamResult.get(0).getValue(); // we assume simple use of stream with a single update
                     value = streamEntryList.get(0);// entry written to stream

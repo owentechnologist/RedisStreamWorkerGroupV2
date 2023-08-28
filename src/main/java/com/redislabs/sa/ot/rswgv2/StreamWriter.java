@@ -45,14 +45,15 @@ public class StreamWriter {
                 Map<String, String> map1 = new HashMap<>();
                 long totalWrittenCounter = 1;
                 long partitionCheckLoopValue = 0;
+                System.out.println("[StreamWriter] now writing to stream called: "+streamName);
                 while (true) {
                     //should we partition?
                     if(partitionCheckLoopValue%1000 == 0){
                         //check for new StreamName (old one is getting old)
                         long slength = 0;
-                        Response<Long> secondsLeftForStream  = jedisPipeline.xlen(streamName);
+                        Response<Long> lengthOfStream  = jedisPipeline.xlen(streamName);
                         jedisPipeline.sync();
-                        slength = secondsLeftForStream.get().longValue();
+                        slength = lengthOfStream.get().longValue();
                         if(slength>Main.MAX_STREAM_LENGTH){
                             //need to create a new key and start writing to it instead of the old one
                             System.out.println("[StreamWriter] asking for new Active StreamKey --> streamLength on "+streamName+" : --> "+slength);
@@ -60,20 +61,28 @@ public class StreamWriter {
                             System.out.println("[StreamWriter] now writing to stream called: "+streamName);
                         }
                     }
+                    ++partitionCheckLoopValue; // increment the partitionCheckLoopValue
                     if(totalNumberToWrite-totalWrittenCounter<=batchSize) {
                         batchSize=(totalNumberToWrite-totalWrittenCounter);
                     }
                     for (int batchCounter = 0; batchCounter < batchSize; batchCounter++) {
-                        String payload = faker.name().firstName()+" "+faker.name().lastName()+" "+faker.address()+" ro "+faker.address().secondaryAddress();
+                        String payload = faker.name().firstName()+" "+
+                                faker.name().lastName()+" "+
+                                faker.address().streetAddress(true)+
+                                "   (reggib daolyap ekam ot txet si siht)";
                         map1.put(payloadKeyName, payload);
                         jedisPipeline.xadd(streamName, XAddParams.xAddParams(), map1);
                     }
-                    jedisPipeline.sync();
-                    totalWrittenCounter=totalWrittenCounter+batchSize;
+                    try {
+                        jedisPipeline.sync();
+                        totalWrittenCounter = totalWrittenCounter + batchSize;
+                    }catch(redis.clients.jedis.exceptions.JedisConnectionException jce){
+                        jedisPipeline = Main.jedisConnectionHelper.getPipeline();
+                        --partitionCheckLoopValue; // decrement the partitionCheckLoopValue
+                    }
                     try{
                         Thread.sleep(sleepTime);
                     }catch(InterruptedException ie){}
-
                     if(totalWrittenCounter>=totalNumberToWrite){
                         break;
                     }

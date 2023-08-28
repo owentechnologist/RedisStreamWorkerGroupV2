@@ -49,7 +49,7 @@ public class Main {
     public static long STREAM_TTL_SECONDS = 300;
     public static String TOPIC = "X:FOR_PROCESSING{1}";
     public static boolean CONSUMER_RESPONSE_IS_A_STREAM = true;
-    public static String STREAM_READ_START = String.valueOf(StreamEntryID.LAST_ENTRY); // This equals "$"
+    public static String STREAM_READ_START_POINT_IN_STREAM = String.valueOf(StreamEntryID.LAST_ENTRY); // This equals "$"
     public static int connectionPoolSize = 100;
     public static JedisConnectionHelper jedisConnectionHelper = null;
     public static long MAX_STREAM_LENGTH = 1000000;
@@ -120,7 +120,9 @@ public class Main {
             if (argList.contains("--startreaper")) {
                 int argIndex = argList.indexOf("--startreaper");
                 IS_REAPER_ACTIVE = Boolean.parseBoolean(argList.get(argIndex + 1));
-                startStatus+="\nThis is a reaper instance ";
+                if(IS_REAPER_ACTIVE) {
+                    startStatus += "\nThis is a reaper instance ";
+                }
             }
             if (argList.contains("--shouldtrimstream")) {
                 int argIndex = argList.indexOf("--shouldtrimstream");
@@ -137,7 +139,7 @@ public class Main {
             if (argList.contains("--writersleeptime")) {
                 int argIndex = argList.indexOf("--writersleeptime");
                 WRITER_SLEEP_TIME = Integer.parseInt(argList.get(argIndex + 1));
-                startStatus+="\nPublisher will sleep this long between each batch: "+WRITER_SLEEP_TIME;
+                startStatus+="\nPublisher will sleep this many milliseconds between each batch: "+WRITER_SLEEP_TIME;
             }
             if (argList.contains("--addondeltaforworkername")) {
                 int argIndex = argList.indexOf("--addondeltaforworkername");
@@ -165,8 +167,8 @@ public class Main {
             }
             if (argList.contains("--streamreadstart")) { //This is used when new consumers come online
                 int argIndex = argList.indexOf("--streamreadstart");
-                STREAM_READ_START = argList.get(argIndex + 1);
-                startStatus+="\nAll consumers will begin reading from the target stream using: "+STREAM_READ_START;
+                STREAM_READ_START_POINT_IN_STREAM = argList.get(argIndex + 1);
+                startStatus+="\nAll consumers will begin reading from the target stream using: "+ STREAM_READ_START_POINT_IN_STREAM;
             }
             if (argList.contains("--consumerresponseisastream")) { //This is used when new consumers come online
                 int argIndex = argList.indexOf("--consumerresponseisastream");
@@ -184,10 +186,11 @@ public class Main {
         //testConnection(jedisConnectionHelper);
         if(argList.contains("--topic")){
             // the caller expects us to have multiple StreamNames sharing the responsibility of a single topic
-            // we will put the names into a Redis LIST starting with the TOPIC value
-            if(HOW_MANY_ENTRIES>0) { // we are a publisher
+            // we will put the names into a Redis LIST named for the TOPIC value
+            // The list will keep track of the names of the streams created for that topic
+            if(HOW_MANY_ENTRIES>0) { // we are a publisher find the most recent stream written to:
                 STREAM_NAME = StreamLifecycleManager.setTopic(jedisConnectionHelper, TOPIC, true);
-            }else{
+            }else{ // we are a consumer find the oldest stream for this topic:
                 STREAM_NAME = StreamLifecycleManager.setTopic(jedisConnectionHelper, TOPIC, false);
             }
         }
@@ -206,7 +209,7 @@ public class Main {
         if(NUMBER_OF_WORKER_THREADS>0){
             RedisStreamWorkerGroupHelper redisStreamWorkerGroupHelper =
                     new RedisStreamWorkerGroupHelper(STREAM_NAME, jedisConnectionHelper,VERBOSE);
-            redisStreamWorkerGroupHelper.createConsumerGroup(CONSUMER_GROUP_NAME,STREAM_READ_START);
+            redisStreamWorkerGroupHelper.createConsumerGroup(CONSUMER_GROUP_NAME, STREAM_READ_START_POINT_IN_STREAM);
             for(int w=0;w<NUMBER_OF_WORKER_THREADS;w++){
                 StreamEventMapProcessor processor = null;
                 if(CONSUMER_RESPONSE_IS_A_STREAM) {
