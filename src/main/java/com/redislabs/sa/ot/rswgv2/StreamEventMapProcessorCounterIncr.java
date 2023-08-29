@@ -98,8 +98,13 @@ public class StreamEventMapProcessorCounterIncr implements StreamEventMapProcess
             // we increment the string as a counter to show work is progressing for this consumer:
             jedisConnectionHelper.getPooledJedis().incr(outputStreamName);
         } catch (Throwable t) {
-            System.out.println("WARNING:");
-            t.printStackTrace();
+            try{
+                Thread.sleep(20);
+                jedisConnectionHelper.getPooledJedis().incr(outputStreamName);
+            }catch(Throwable tt) {
+                System.out.println("WARNING:");
+                t.printStackTrace();
+            }
         }
     }
 

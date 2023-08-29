@@ -48,7 +48,7 @@ public class StreamWriter {
                 System.out.println("[StreamWriter] now writing to stream called: "+streamName);
                 while (true) {
                     //should we partition?
-                    if(partitionCheckLoopValue%1000 == 0){
+                    if(partitionCheckLoopValue%100 == 0){
                         //check for new StreamName (old one is getting old)
                         long slength = 0;
                         Response<Long> lengthOfStream  = jedisPipeline.xlen(streamName);
@@ -61,7 +61,6 @@ public class StreamWriter {
                             System.out.println("[StreamWriter] now writing to stream called: "+streamName);
                         }
                     }
-                    ++partitionCheckLoopValue; // increment the partitionCheckLoopValue
                     if(totalNumberToWrite-totalWrittenCounter<=batchSize) {
                         batchSize=(totalNumberToWrite-totalWrittenCounter);
                     }
@@ -72,6 +71,7 @@ public class StreamWriter {
                                 "   (reggib daolyap ekam ot txet si siht)";
                         map1.put(payloadKeyName, payload);
                         jedisPipeline.xadd(streamName, XAddParams.xAddParams(), map1);
+                        ++partitionCheckLoopValue; // increment the partitionCheckLoopValue
                     }
                     try {
                         jedisPipeline.sync();

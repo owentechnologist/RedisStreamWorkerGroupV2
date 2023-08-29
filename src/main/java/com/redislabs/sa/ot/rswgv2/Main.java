@@ -53,6 +53,7 @@ public class Main {
     public static int connectionPoolSize = 100;
     public static JedisConnectionHelper jedisConnectionHelper = null;
     public static long MAX_STREAM_LENGTH = 1000000;
+    public static boolean IS_TOPIC_GOVERNOR = false;
 
     public static void main(String [] args){
         ArrayList<String> argList = null;
@@ -66,6 +67,15 @@ public class Main {
             argList = new ArrayList<>(Arrays.asList(args));
             // Playing with the concept of a logical TOPIC that is implemented with multiple streams
             // As time goes by the stream names change and old ones expire due to TTL / expiration
+            // the topic governor is responsible for initiating the first stream in a topic
+            // adding it to the Topic list object in Redis and eventually rotating / renaming the streams
+            if (argList.contains("--topicgovernor")) {
+                int argIndex = argList.indexOf("--topicgovernor");
+                IS_TOPIC_GOVERNOR = Boolean.parseBoolean(argList.get(argIndex + 1));
+                if(IS_TOPIC_GOVERNOR) {
+                    startStatus += "\n***** TopicGovernor ( WILL NOT WRITE OR CONSUME EVENTS ) ******";
+                }
+            }
             if (argList.contains("--topic")) {
                 int argIndex = argList.indexOf("--topic");
                 TOPIC = argList.get(argIndex + 1);
@@ -182,7 +192,14 @@ public class Main {
         }
         jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password,connectionPoolSize);
         System.out.println(startStatus+"\n");
-
+        if(IS_TOPIC_GOVERNOR){
+            System.out.println("This version of the application is responsible" +
+                    " for creating the policy for a topic and creates the first stream for that topic"
+                    +"\n eventually it will also rename streams within a topic according to the policy");
+            TopicGovernor governor = new TopicGovernor();
+            governor.makeFirstStreamForTopic(TOPIC,jedisConnectionHelper);
+            System.exit(0);
+        }
         //testConnection(jedisConnectionHelper);
         if(argList.contains("--topic")){
             // the caller expects us to have multiple StreamNames sharing the responsibility of a single topic
@@ -208,7 +225,7 @@ public class Main {
         }
         if(NUMBER_OF_WORKER_THREADS>0){
             RedisStreamWorkerGroupHelper redisStreamWorkerGroupHelper =
-                    new RedisStreamWorkerGroupHelper(STREAM_NAME, jedisConnectionHelper,VERBOSE);
+                    new RedisStreamWorkerGroupHelper(TOPIC,STREAM_NAME, jedisConnectionHelper,VERBOSE);
             redisStreamWorkerGroupHelper.createConsumerGroup(CONSUMER_GROUP_NAME, STREAM_READ_START_POINT_IN_STREAM);
             for(int w=0;w<NUMBER_OF_WORKER_THREADS;w++){
                 StreamEventMapProcessor processor = null;

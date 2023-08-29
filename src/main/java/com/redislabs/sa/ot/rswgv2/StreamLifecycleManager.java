@@ -99,6 +99,8 @@ public class StreamLifecycleManager {
         long index = redis.lpos(topic,previousStream);
         // because of LPUSH behavior
         // next oldest stream in topic will be 1 index place lower (closer to the beginning of the List)
+        // NB: if you are at the end of the list and subtract 1 - you are put at the TOP of the list
+        // this can lead to an endless loop if no further publishing ever occurs in this topic
         String candidateStream = redis.lindex(topic,index-1);
         if(null!=candidateStream){
             if(foundResult(redis,candidateStream)){
