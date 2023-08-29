@@ -100,8 +100,9 @@ public class StreamLifecycleManager {
         // because of LPUSH behavior
         // next oldest stream in topic will be 1 index place lower (closer to the beginning of the List)
         // NB: if you are at the end of the list and subtract 1 - you are put at the TOP of the list
-        // this can lead to an endless loop if no further publishing ever occurs in this topic
-        String candidateStream = redis.lindex(topic,index-1);
+        index = index-1; // we want to get the next Stream in the list
+        if(index<0){index=0;} //should keep us from endless looping
+        String candidateStream = redis.lindex(topic,index);
         if(null!=candidateStream){
             if(foundResult(redis,candidateStream)){
                 goodNextStreamname = candidateStream;
