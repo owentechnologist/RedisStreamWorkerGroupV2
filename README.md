@@ -6,7 +6,7 @@
 #### You can now setup a publisher that writes multiple streams to a topic
 These are the arguments that trigger publishing:  
 ```
---topic someInterestingTopicA --howmanyentries 10000000 --maxstreamlength 1000000
+--topic someInterestingTopicA --ispublisher true --howmanyentries 10000000 --maxstreamlength 1000000
 ``` 
 #### Workers / ConsumerGroup Members now also use the --topic argument instead of a --streamname
 #### The workers now move from Stream to Stream within a Topic: processing all entries
@@ -15,9 +15,18 @@ These are the arguments that trigger publishing:
 #### - A writer / Publisher writes X events/entries to the streams in a topic
 #### - Some number of workers (belonging to a worker group) consume those entries and process them
 #### - The processed entries are written to a separate stream or they are simply counted and the count is stored in a Redis String
-These arguments establish if a stream is used to store processed entries or if they are counted:
+These arguments establish if a stream is used by consumers to record processed entries or if they are counted:
 ```
 --consumerresponseisastream false --resultskeyname topicA:workerGroup2:ResultCount
+```
+
+### Example start of a Publisher:
+```
+mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host redis-10400.homelab.local --port 10400 --topic TopicA:{1} --ispublisher true --howmanyentries 1000000 --maxstreamlength 50000 --writerbatchsize 10 --writersleeptime 10 --isconsumer false"
+```
+### Example start of a Consumer:
+```
+mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.20 --port 10400 --topic TopicA:{1} --ispublisher false --howmanyworkers 2 --shouldtrimstream false --workersleeptime 10 --streamreadstart 0-0 --resultskeyname consumer:count:TopicA:OT_3 --consumerresponseisastream false  --consumergroupname OT_3"
 ```
 
 The default settings operate at around 100 ops/second and use:

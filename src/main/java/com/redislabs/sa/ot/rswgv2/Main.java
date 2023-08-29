@@ -49,11 +49,13 @@ public class Main {
     public static long STREAM_TTL_SECONDS = 300;
     public static String TOPIC = "X:FOR_PROCESSING{1}";
     public static boolean CONSUMER_RESPONSE_IS_A_STREAM = true;
-    public static String STREAM_READ_START_POINT_IN_STREAM = String.valueOf(StreamEntryID.LAST_ENTRY); // This equals "$"
+    public static String STREAM_READ_START_POINT_IN_STREAM = "0-0"; //start at beginning of stream
     public static int connectionPoolSize = 100;
     public static JedisConnectionHelper jedisConnectionHelper = null;
     public static long MAX_STREAM_LENGTH = 1000000;
     public static boolean IS_TOPIC_GOVERNOR = false;
+    public static boolean IS_PUBLISHER = true;
+    public static boolean IS_CONSUMER = true;
 
     public static void main(String [] args){
         ArrayList<String> argList = null;
@@ -69,6 +71,20 @@ public class Main {
             // As time goes by the stream names change and old ones expire due to TTL / expiration
             // the topic governor is responsible for initiating the first stream in a topic
             // adding it to the Topic list object in Redis and eventually rotating / renaming the streams
+            if (argList.contains("--isconsumer")) {
+                int argIndex = argList.indexOf("--isconsumer");
+                IS_CONSUMER = Boolean.parseBoolean(argList.get(argIndex + 1));
+                if(IS_CONSUMER) {
+                    startStatus += "\nI am a Publisher and WILL WRITE entries ";
+                }
+            }
+            if (argList.contains("--ispublisher")) {
+                int argIndex = argList.indexOf("--ispublisher");
+                IS_PUBLISHER = Boolean.parseBoolean(argList.get(argIndex + 1));
+                if(IS_PUBLISHER) {
+                    startStatus += "\nI am a Publisher and WILL WRITE entries ";
+                }
+            }
             if (argList.contains("--topicgovernor")) {
                 int argIndex = argList.indexOf("--topicgovernor");
                 IS_TOPIC_GOVERNOR = Boolean.parseBoolean(argList.get(argIndex + 1));
@@ -214,7 +230,7 @@ public class Main {
         if(argList.contains("--activestreamttlseconds")){
             StreamLifecycleManager.setTTLSecondsForTopicActiveStream(jedisConnectionHelper,TOPIC,STREAM_TTL_SECONDS);
         }
-        if(HOW_MANY_ENTRIES>0){ //we will be writing some entries
+        if((HOW_MANY_ENTRIES>0)&&(IS_PUBLISHER)){ //we will be writing some entries
             StreamWriter streamWriter =
                     new StreamWriter(STREAM_NAME,jedisConnectionHelper.getPipeline())
                             .setBatchSize(WRITER_BATCH_SIZE)
@@ -223,7 +239,7 @@ public class Main {
                             .setTotalNumberToWrite(HOW_MANY_ENTRIES);
             streamWriter.kickOffStreamEvents();
         }
-        if(NUMBER_OF_WORKER_THREADS>0){
+        if((NUMBER_OF_WORKER_THREADS>0)&&(IS_CONSUMER)){
             RedisStreamWorkerGroupHelper redisStreamWorkerGroupHelper =
                     new RedisStreamWorkerGroupHelper(TOPIC,STREAM_NAME, jedisConnectionHelper,VERBOSE);
             redisStreamWorkerGroupHelper.createConsumerGroup(CONSUMER_GROUP_NAME, STREAM_READ_START_POINT_IN_STREAM);
