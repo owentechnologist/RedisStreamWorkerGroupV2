@@ -85,7 +85,7 @@ public class Main {
                 int argIndex = argList.indexOf("--verbose");
                 VERBOSE = Boolean.parseBoolean(argList.get(argIndex + 1));
             }
-            // if using TOPIC - the streamname will be given from the StreamLifecycleManager
+            // if using TOPIC - the streamname will be given from the StreamLifecycleManager not from this
             if (argList.contains("--streamname")) {
                 int argIndex = argList.indexOf("--streamname");
                 STREAM_NAME = argList.get(argIndex + 1);

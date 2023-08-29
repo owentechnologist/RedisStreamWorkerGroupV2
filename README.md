@@ -1,8 +1,24 @@
 ## This program demonstrates writing and processing events using Redis Streams using Jedis 4.3.1
 
-#### - A writer writes X events/entries to one stream
+### A bunch has changed this August... I added the concept of a Topic
+### Implemented as a List in Redis, it keeps track of all related streams
+
+#### You can now setup a publisher that writes multiple streams to a topic
+These are the arguments that trigger publishing:  
+```
+--topic someInterestingTopicA --howmanyentries 10000000 --maxstreamlength 1000000
+``` 
+#### Workers / ConsumerGroup Members now also use the --topic argument instead of a --streamname
+#### The workers now move from Stream to Stream within a Topic: processing all entries
+#### Starting with the oldest and continuing until the youngest
+
+#### - A writer / Publisher writes X events/entries to the streams in a topic
 #### - Some number of workers (belonging to a worker group) consume those entries and process them
-#### - The processed entries are written to a separate stream
+#### - The processed entries are written to a separate stream or they are simply counted and the count is stored in a Redis String
+These arguments establish if a stream is used to store processed entries or if they are counted:
+```
+--consumerresponseisastream false --resultskeyname topicA:workerGroup2:ResultCount
+```
 
 The default settings operate at around 100 ops/second and use:
 - A **work to be done** stream name of "X:FOR_PROCESSING{1}"
