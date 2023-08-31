@@ -92,7 +92,8 @@ public class JedisConnectionHelper {
         poolConfig.setMinIdle(1);
         poolConfig.setMaxWait(Duration.ofMinutes(1));
         poolConfig.setTestOnCreate(true);
-        poolConfig.setTestOnReturn(true);//reduce the likelihood that stale connections exist
+        poolConfig.setTestOnReturn(false);//reduce the likelihood that stale connections exist
+        poolConfig.setTestOnBorrow(true);
 
         this.connectionProvider = new PooledConnectionProvider(new ConnectionFactory(address, clientConfig), poolConfig);
         this.jedisPooled = new JedisPooled(connectionProvider);

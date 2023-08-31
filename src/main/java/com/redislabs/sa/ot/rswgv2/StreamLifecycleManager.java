@@ -21,11 +21,12 @@ public class StreamLifecycleManager {
         return newStreamName;
     }
 
-    // only need to set TTL on the current active topic stream
-    public static void setTTLSecondsForTopicActiveStream(JedisConnectionHelper helper,String topic,long secondsToLive){
+    // only need to set TTL on the current oldest topic stream
+    public static String setTTLSecondsForTopicOldestStream(JedisConnectionHelper helper, String topic, long secondsToLive){
         JedisPooled redis  = helper.getPooledJedis();
-        String activeStream = setTopic(helper,topic,false);//only the consumers set the TTL
-        redis.expire(activeStream,secondsToLive);
+        String oldestStream = cleanAndGetOldestAvailableStreamNameForTopic(helper,topic);
+        redis.expire(oldestStream,secondsToLive);
+        return oldestStream;
     }
 
 
@@ -33,7 +34,7 @@ public class StreamLifecycleManager {
     // If none exists make one and add the active StreamName to it
     // if none exists return the new to-be-activated StreamName
     // If it exists - the pre-existing active StreamName will be returned
-    public static String setTopic(JedisConnectionHelper helper,String topic,boolean isPublisher){
+    public static String establishTopicForConsumer(JedisConnectionHelper helper, String topic){
         String response = "";//return the name of the topic created
         JedisPooled redis  = helper.getPooledJedis();
         Pipeline pipeline = helper.getPipeline();
@@ -42,49 +43,69 @@ public class StreamLifecycleManager {
             Response<List<String>> redisTime = pipeline.time();
             pipeline.sync();
             String ts = redisTime.get().get(0);
-            System.out.println("[StreamLifecycleManager.setTopic()] Redis Time: --> "+ts);
+            System.out.println("[StreamLifecycleManager.establishTopicForConsumer()] Redis Time: --> "+ts);
             pipeline.close();
             newStreamName = topic+":"+ts;
             redis.lpush(topic,newStreamName);
         }else{
-            if(isPublisher) {
-                newStreamName = getLastAvailableStreamNameForTopic(helper, topic);
-            }else{
-                newStreamName = getFirstAvailableStreamNameForTopic(helper, topic);
-            }
+            newStreamName = cleanAndGetOldestAvailableStreamNameForTopic(helper, topic);
         }
         response = newStreamName;
         return response;
     }
 
-    // This method checks a List for the earliest StreamName in existence
-    // This is good for the Consumers
+    // make sure there is a redis LIST for the named TOPIC
+    // If none exists make one and add the active StreamName to it
+    // if none exists return the new to-be-activated StreamName
+    // If it exists - the pre-existing active StreamName will be returned
+    public static String establishTopicForPublisher(JedisConnectionHelper helper, String topic){
+        String response = "";//return the name of the topic created
+        JedisPooled redis  = helper.getPooledJedis();
+        Pipeline pipeline = helper.getPipeline();
+        String newStreamName = "";
+        if(!redis.exists(topic)){
+            Response<List<String>> redisTime = pipeline.time();
+            pipeline.sync();
+            String ts = redisTime.get().get(0);
+            System.out.println("[StreamLifecycleManager.establishTopicForPublisher()] Redis Time: --> "+ts);
+            pipeline.close();
+            newStreamName = topic+":"+ts;
+            redis.lpush(topic,newStreamName);
+        }else{
+            newStreamName = cleanAndGetNewestAvailableStreamNameForTopic(helper, topic);
+        }
+        response = newStreamName;
+        return response;
+    }
+
+
+    // This method checks the topic (List) for the earliest StreamName in existence
+    // This is good for the Publishers who want to publish to the newest stream in a topic
     // It also takes the opportunity to validate that the stream key named in the List exists
     // Stream Keys expire sometimes and it is important to be aware of that
-    public static String getFirstAvailableStreamNameForTopic(JedisConnectionHelper helper,String topic){
+    public static String cleanAndGetNewestAvailableStreamNameForTopic(JedisConnectionHelper helper,String topic){
         JedisPooled redis  = helper.getPooledJedis();
-        long listIndex = redis.llen(topic)-1; // if length of list is 5: return 4 as the index (zero indexing)
+        long listIndex = 0; //(zero indexing - zero is always the last [newest] one written)
         String nextCandidate = redis.lindex(topic,listIndex);
         while(!foundResult(redis,nextCandidate)){
+            System.out.println("[StreamLifecycleManager.cleanAndGetNewestAvailableStreamNameForTopic()] Expected stream does not exist for topic: "+topic);
             redis.lpop(topic);
             listIndex = redis.llen(topic)-1;
             nextCandidate = redis.lindex(topic,listIndex);
         }
-        //firstStreamName = redis.zrange(topic,0,1).get(0);
         return nextCandidate;
     }
 
-    //this should be used by the Publishers:
-    // in fact I don't know if we need it at all for the publishers
+    //this should be used by the TopicGovernor:
     // if a new publisher comes online it should just create a new Stream and carry on
     // Otherwise entries could be written back in time (to old keys already processed) unnecessarily
-    public static String getLastAvailableStreamNameForTopic(JedisConnectionHelper helper,String topic){
+    public static String cleanAndGetOldestAvailableStreamNameForTopic(JedisConnectionHelper helper, String topic){
         JedisPooled redis  = helper.getPooledJedis();
-        long listIndex = 0;
+        long listIndex = redis.llen(topic)-1;
         String nextCandidate = redis.lindex(topic,listIndex);
         while(!foundResult(redis,nextCandidate)){ //nextCandidate is a Stream stored in the list or null
-            redis.rpop(topic);
-            listIndex = 0;
+            redis.rpop(topic); // this should eliminate the oldest stream
+            listIndex = redis.llen(topic)-1;
             nextCandidate = redis.lindex(topic,listIndex);
         }
         return nextCandidate;
@@ -111,7 +132,8 @@ public class StreamLifecycleManager {
         return goodNextStreamname;
     }
 
-    //  checks for the existsnce of a named Stream
+
+    //  checks for the existence of a named Stream
     static boolean foundResult(JedisPooled redis, String streamName){
         boolean isGoodAndExists=false;
         try {

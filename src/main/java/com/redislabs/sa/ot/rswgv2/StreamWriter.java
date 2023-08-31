@@ -2,6 +2,7 @@ package com.redislabs.sa.ot.rswgv2;
 import com.github.javafaker.Faker;
 import redis.clients.jedis.Pipeline;
 import redis.clients.jedis.Response;
+import redis.clients.jedis.exceptions.JedisConnectionException;
 import redis.clients.jedis.params.XAddParams;
 
 import java.util.HashMap;
@@ -68,7 +69,7 @@ public class StreamWriter {
                         String payload = faker.name().firstName()+" "+
                                 faker.name().lastName()+" "+
                                 faker.address().streetAddress(true)+
-                                "   (reggib daolyap ekam ot txet si siht)";
+                                "   )reggib daolyap ekam ot txet si siht( ";
                         map1.put(payloadKeyName, payload);
                         jedisPipeline.xadd(streamName, XAddParams.xAddParams(), map1);
                         ++partitionCheckLoopValue; // increment the partitionCheckLoopValue
@@ -76,9 +77,20 @@ public class StreamWriter {
                     try {
                         jedisPipeline.sync();
                         totalWrittenCounter = totalWrittenCounter + batchSize;
-                    }catch(redis.clients.jedis.exceptions.JedisConnectionException jce){
-                        jedisPipeline = Main.jedisConnectionHelper.getPipeline();
+                    }catch(JedisConnectionException jce){
                         --partitionCheckLoopValue; // decrement the partitionCheckLoopValue
+                        boolean isNotSafeToProceed = true;
+                        while(isNotSafeToProceed){
+                            try{
+                                System.out.println("StreamWriter> connection issue trying again...");
+                                Thread.sleep(5000);
+                                jedisPipeline.close();
+                                jedisPipeline = Main.jedisConnectionHelper.getPipeline();
+                            }catch(Throwable tt){
+                                tt.printStackTrace();
+                            }
+                            isNotSafeToProceed = false;
+                        }
                     }
                     try{
                         Thread.sleep(sleepTime);

@@ -2,12 +2,12 @@ package com.redislabs.sa.ot.rswgv2;
 
 import com.redislabs.sa.ot.streamutils.RedisStreamWorkerGroupHelper;
 import com.redislabs.sa.ot.streamutils.StreamEventMapProcessor;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.time.format.DateTimeFormatter;
 
 import com.redislabs.sa.ot.util.JedisConnectionHelper;
-import redis.clients.jedis.*;
 
 /**
  * The program demonstrates writing and processing events using Redis Streams
@@ -32,7 +32,6 @@ import redis.clients.jedis.*;
  *
 **/
 public class Main {
-
     public static String STREAM_NAME = "X:FOR_PROCESSING{1}";
     public static String RESULTS_KEY_NAME = "X:PROCESSED_EVENTS{1}";
     public static int NUMBER_OF_WORKER_THREADS = 2;
@@ -54,11 +53,12 @@ public class Main {
     public static JedisConnectionHelper jedisConnectionHelper = null;
     public static long MAX_STREAM_LENGTH = 1000000;
     public static boolean IS_TOPIC_GOVERNOR = false;
-    public static boolean IS_PUBLISHER = true;
-    public static boolean IS_CONSUMER = true;
+    public static long GOVERNOR_SLEEP_TIME_SECONDS = 15;//Shouldn't need to run often
+    public static boolean IS_PUBLISHER = false;
+    public static boolean IS_CONSUMER = false;
 
     public static void main(String [] args){
-        ArrayList<String> argList = null;
+        ArrayList<String> argList = new ArrayList<>();
         String host = "localhost";
         int port = 6379;
         String userName = "default";
@@ -67,6 +67,7 @@ public class Main {
 
         if(args.length>0) {
             argList = new ArrayList<>(Arrays.asList(args));
+            System.out.println(argList);
             // Playing with the concept of a logical TOPIC that is implemented with multiple streams
             // As time goes by the stream names change and old ones expire due to TTL / expiration
             // the topic governor is responsible for initiating the first stream in a topic
@@ -75,7 +76,7 @@ public class Main {
                 int argIndex = argList.indexOf("--isconsumer");
                 IS_CONSUMER = Boolean.parseBoolean(argList.get(argIndex + 1));
                 if(IS_CONSUMER) {
-                    startStatus += "\nI am a Publisher and WILL WRITE entries ";
+                    startStatus += "\nI am a Consumer and will consume entries ";
                 }
             }
             if (argList.contains("--ispublisher")) {
@@ -85,11 +86,18 @@ public class Main {
                     startStatus += "\nI am a Publisher and WILL WRITE entries ";
                 }
             }
-            if (argList.contains("--topicgovernor")) {
-                int argIndex = argList.indexOf("--topicgovernor");
+            if (argList.contains("--isgovernor")) {
+                int argIndex = argList.indexOf("--isgovernor");
                 IS_TOPIC_GOVERNOR = Boolean.parseBoolean(argList.get(argIndex + 1));
                 if(IS_TOPIC_GOVERNOR) {
                     startStatus += "\n***** TopicGovernor ( WILL NOT WRITE OR CONSUME EVENTS ) ******";
+                }
+            }
+            if (argList.contains("--governorsleepsecs")) {
+                int argIndex = argList.indexOf("--governorsleepsecs");
+                GOVERNOR_SLEEP_TIME_SECONDS = Long.parseLong(argList.get(argIndex + 1));
+                if(IS_TOPIC_GOVERNOR) {
+                    startStatus += "\n***** TopicGovernor will sleep for " + GOVERNOR_SLEEP_TIME_SECONDS;
                 }
             }
             if (argList.contains("--topic")) {
@@ -160,7 +168,7 @@ public class Main {
             if (argList.contains("--writerbatchsize")) {
                 int argIndex = argList.indexOf("--writerbatchsize");
                 WRITER_BATCH_SIZE = Integer.parseInt(argList.get(argIndex + 1));
-                startStatus+="\n{Publishing in batches of "+WRITER_BATCH_SIZE;
+                startStatus+="\nPublishing in batches of "+WRITER_BATCH_SIZE;
             }
             if (argList.contains("--writersleeptime")) {
                 int argIndex = argList.indexOf("--writersleeptime");
@@ -176,10 +184,10 @@ public class Main {
                 HOW_MANY_ENTRIES = Integer.parseInt(argList.get(argIndex + 1));
                 startStatus+="\nTotal number this publisher will write to topic is "+HOW_MANY_ENTRIES;
             }
-            if (argList.contains("--activestreamttlseconds")) {
-                int argIndex = argList.indexOf("--activestreamttlseconds");
+            if (argList.contains("--oldeststreamttlseconds")) {
+                int argIndex = argList.indexOf("--oldeststreamttlseconds");
                 STREAM_TTL_SECONDS = Long.parseLong(argList.get(argIndex + 1));
-                startStatus+="\nSeconds this consumer is setting TTL on the stream mapped to topic: "+STREAM_TTL_SECONDS;
+                startStatus+="\nSeconds for TTL on the oldest stream mapped to topic: "+STREAM_TTL_SECONDS;
             }
             if (argList.contains("--maxstreamlength")) { // after this length, switch to a new stream
                 int argIndex = argList.indexOf("--maxstreamlength");
@@ -209,28 +217,32 @@ public class Main {
         jedisConnectionHelper = new JedisConnectionHelper(host,port,userName,password,connectionPoolSize);
         System.out.println(startStatus+"\n");
         if(IS_TOPIC_GOVERNOR){
-            System.out.println("This version of the application is responsible" +
-                    " for creating the policy for a topic and creates the first stream for that topic"
-                    +"\n eventually it will also rename streams within a topic according to the policy");
             TopicGovernor governor = new TopicGovernor();
-            governor.makeFirstStreamForTopic(TOPIC,jedisConnectionHelper);
-            System.exit(0);
+            ArrayList<String> topics = new ArrayList();
+            topics.add(TOPIC);
+            governor.setTopics(topics);//possibility for more than one topic to be set in future
+            //governor.makeFirstStreamForTopic(TOPIC,jedisConnectionHelper);
+            governor.manageTopics(jedisConnectionHelper,GOVERNOR_SLEEP_TIME_SECONDS);
+            //System.exit(0);  Running Governor thread: don't kill the process
         }
         //testConnection(jedisConnectionHelper);
         if(argList.contains("--topic")){
             // the caller expects us to have multiple StreamNames sharing the responsibility of a single topic
             // we will put the names into a Redis LIST named for the TOPIC value
             // The list will keep track of the names of the streams created for that topic
-            if(HOW_MANY_ENTRIES>0) { // we are a publisher find the most recent stream written to:
-                STREAM_NAME = StreamLifecycleManager.setTopic(jedisConnectionHelper, TOPIC, true);
-            }else{ // we are a consumer find the oldest stream for this topic:
-                STREAM_NAME = StreamLifecycleManager.setTopic(jedisConnectionHelper, TOPIC, false);
+            if((HOW_MANY_ENTRIES>0)&&(IS_PUBLISHER)) { // we are a publisher find the most recent stream written to:
+                STREAM_NAME = StreamLifecycleManager.establishTopicForPublisher(jedisConnectionHelper, TOPIC);
+            }else if((IS_CONSUMER)&&(NUMBER_OF_WORKER_THREADS>0)){ // we are a consumer find the oldest stream for this topic:
+                STREAM_NAME = StreamLifecycleManager.establishTopicForConsumer(jedisConnectionHelper, TOPIC);
             }
         }
-        if(argList.contains("--activestreamttlseconds")){
-            StreamLifecycleManager.setTTLSecondsForTopicActiveStream(jedisConnectionHelper,TOPIC,STREAM_TTL_SECONDS);
+        //This behavior should now be handled by the TopicGovernor
+        //Something will update the Topic policy Hash stored in Redis instead
+        if(argList.contains("--oldeststreamttlseconds")){
+            StreamLifecycleManager.setTTLSecondsForTopicOldestStream(jedisConnectionHelper,TOPIC,STREAM_TTL_SECONDS);
         }
         if((HOW_MANY_ENTRIES>0)&&(IS_PUBLISHER)){ //we will be writing some entries
+            System.out.println("DEBUG: about to create StreamWriter...");
             StreamWriter streamWriter =
                     new StreamWriter(STREAM_NAME,jedisConnectionHelper.getPipeline())
                             .setBatchSize(WRITER_BATCH_SIZE)

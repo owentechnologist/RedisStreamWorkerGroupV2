@@ -3,19 +3,33 @@
 ### A bunch has changed this August... I added the concept of a Topic
 ### Implemented as a List in Redis, it keeps track of all related streams
 
-#### You can now setup a publisher that writes multiple streams to a topic
+There are three main versions of this program you can run:
+1. Publisher
+2. Consumer
+3. TopicGovernor
+
+Running each one in a separate shell allows you to clearly see the flow as
+publishers move from stream to stream within a topic and consumers do the same
+and topicGovernor allows for easy expiration (TTL) configuration and execution 
+through the changing of attributes in a TopicPolicy object stored in redis.
+
+![simplified workflow](StreamsInTopicsForScaling.png)
+#### You can now set up a publisher that writes multiple streams to a topic
 These are the arguments that trigger publishing:  
 ```
 --topic someInterestingTopicA --ispublisher true --howmanyentries 10000000 --maxstreamlength 1000000
 ``` 
 #### Workers / ConsumerGroup Members now also use the --topic argument instead of a --streamname
-#### The workers now move from Stream to Stream within a Topic: processing all entries
-#### Starting with the oldest and continuing until the youngest
+#### The workers now move sequentially from Stream to Stream within a Topic: processing all entries
+#### Starting with the oldest Stream
 
 #### - A writer / Publisher writes X events/entries to the streams in a topic
 #### - Some number of workers (belonging to a worker group) consume those entries and process them
-#### - The processed entries are written to a separate stream or they are simply counted and the count is stored in a Redis String
-These arguments establish if a stream is used by consumers to record processed entries or if they are counted:
+#### - The processed entries are written to a separate stream ... OR: they are simply counted, and the count is stored in a Redis String
+### to get the 'just counted' behavior use:  
+--consumerresponseisastream false
+
+#### You may also want to provide the name of the string key used to store the count for this group:
 ```
 --consumerresponseisastream false --resultskeyname topicA:workerGroup2:ResultCount
 ```
@@ -29,7 +43,22 @@ mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host redi
 mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.20 --port 10400 --topic TopicA:{1} --ispublisher false --howmanyworkers 2 --shouldtrimstream false --workersleeptime 10 --streamreadstart 0-0 --resultskeyname consumer:count:TopicA:OT_3 --consumerresponseisastream false  --consumergroupname OT_3"
 ```
 
-The default settings operate at around 100 ops/second and use:
+#### This program also has a TopicGovernor mode
+#### - running as a TopicGovernor allows setting TTL on the oldest stream in a topic
+
+### Example start of a TopicGovernor:
+``` 
+mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.20 --port 10400 --topic TopicA:{1} --ispublisher false --isconsumer false --isgovernor true --governorsleepsecs 60"
+```
+
+You can run without the
+```
+--topic <sometopic>
+```
+argument if you do not want that feature.
+
+The default settings have workers that write results to a second stream and it operates at around 100 ops/second and use:
+
 - A **work to be done** stream name of "X:FOR_PROCESSING{1}"
 - A **work completed** stream name of "X:PROCESSED_EVENTS{1}"
 - One writer that writes 10000 entries in batches of 200 entries (with 50 millisecond pauses between each batch)
@@ -37,12 +66,12 @@ The default settings operate at around 100 ops/second and use:
 
 * To run the program with the default settings (supplying the host and port for Redis) do:
 ```
-mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host FIXME --port FIXME"
+mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.20 --port 10400 --ispublisher true --howmanyentries 10000 --isconsumer true --howmanyworkers 2"
 ```
 
 * To run the program much, much, much faster you can use the following command:
 ```
-mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host FIXME --port FIXME --howmanyentries 100000 --howmanyworkers 20"
+mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.20 --port 10400 --ispublisher true --howmanyentries 10000 --isconsumer true --howmanyworkers 20"
 ```
 
 

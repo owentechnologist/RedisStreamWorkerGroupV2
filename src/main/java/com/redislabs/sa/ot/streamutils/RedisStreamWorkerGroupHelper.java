@@ -102,7 +102,7 @@ public class RedisStreamWorkerGroupHelper {
                                 //can't create another group from inside self
                                 // need to send signal to ConsumerGroupGovernor to use:
                                 // getNextAvailableStreamNameForTopic();
-                                System.out.println("Finshed processing stream!\nGetting next Stream for topic...");
+                                System.out.println("Finished processing stream!\nGetting next Stream for topic...");
                                 try{
                                     Thread.sleep((int)(Math.random() * 500) + 10);
                                     RedisStreamWorkerGroupHelper wgh = new RedisStreamWorkerGroupHelper(topic,newStreamName,jedisConnectionHelper,verbose);
@@ -128,20 +128,24 @@ public class RedisStreamWorkerGroupHelper {
                         // got a stale connection from the pool
                     }
                     if(!(null==streamResult)){
-                        key = streamResult.get(0).getKey(); // name of Stream
-                        streamEntryList = streamResult.get(0).getValue(); // we assume simple use of stream with a single update
-                        value = streamEntryList.get(0);// entry written to stream
-                        printMessageSparingly("Consumer " + consumerName + " of ConsumerGroup " + consumerGroupName + " has received... " + key + " " + value);
+                        try {
+                            key = streamResult.get(0).getKey(); // name of Stream
+                            streamEntryList = streamResult.get(0).getValue(); // we assume simple use of stream with a single update
+                            value = streamEntryList.get(0);// entry written to stream
+                            printMessageSparingly("Consumer " + consumerName + " of ConsumerGroup " + consumerGroupName + " has received... " + key + " " + value);
 
-                        printcounter++;
-                        Map<String, StreamEntry> entry = new HashMap();
-                        entry.put(key + ":" + value.getID() + ":" + consumerName, value);
-                        lastSeenID = value.getID();
-                        streamEventMapProcessor.processStreamEventMap(entry);
+                            printcounter++;
+                            Map<String, StreamEntry> entry = new HashMap();
+                            entry.put(key + ":" + value.getID() + ":" + consumerName, value);
+                            lastSeenID = value.getID();
+                            streamEventMapProcessor.processStreamEventMap(entry);
 
-                        pooledJedis.xack(key, consumerGroupName, lastSeenID);
-                        if (shouldTrim) {
-                            pooledJedis.xdel(key, lastSeenID);// delete test
+                            pooledJedis.xack(key, consumerGroupName, lastSeenID);
+                            if (shouldTrim) {
+                                pooledJedis.xdel(key, lastSeenID);// delete test
+                            }
+                        }catch(Throwable probablyConnection){
+                            pooledJedis = jedisConnectionHelper.getPooledJedis();
                         }
                     }else{
                         //break; // this thread exits the loop leaving the new one to do its thing
