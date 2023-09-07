@@ -69,7 +69,7 @@ public class StreamWriter {
                         String payload = faker.name().firstName()+" "+
                                 faker.name().lastName()+" "+
                                 faker.address().streetAddress(true)+
-                                "   )reggib daolyap ekam ot txet si siht( ";
+                                "   )reggib daolyap ekam ot txet si siht( ^^&*^%rtw1234";
                         map1.put(payloadKeyName, payload);
                         jedisPipeline.xadd(streamName, XAddParams.xAddParams(), map1);
                         ++partitionCheckLoopValue; // increment the partitionCheckLoopValue

@@ -109,3 +109,218 @@ Instance 2:
 ### There are a ton of other flags/settings available -check the top of the main method in the class 'Main' to see what other things you can adjust.
 
 ## NOTE that the program will not exit on its own if it is running Worker Threads.
+
+Example Run of all three Topic-related Services:
+
+After initial start of the Consumer, Governor and Publisher we see these keys:
+
+![StateOfSystemAtStart1](TopicExampleSystemState1.png)
+
+![StateOfSystemAtStart2](TopicExampleSystemState2.png)
+
+Publisher:
+``` 
+owentaylor@Owens-MacBook-Pro RedisStreamWorkerGroupV2 % mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host redis-10400.homelab.local --port 10400 --topic notesFromMom --ispublisher true --howmanyentries 1000000 --maxstreamlength 100000 --writerbatchsize 10 --writersleeptime 50"
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------< org.example:RedisStreamWorkerGroupV2 >----------------
+[INFO] Building RedisStreamWorkerGroupV2 1.0-SNAPSHOT
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ RedisStreamWorkerGroupV2 ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] Copying 0 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.1:compile (default-compile) @ RedisStreamWorkerGroupV2 ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- exec-maven-plugin:3.0.0:java (default-cli) @ RedisStreamWorkerGroupV2 ---
+[--host, redis-10400.homelab.local, --port, 10400, --topic, notesFromMom, --ispublisher, true, --howmanyentries, 1000000, --maxstreamlength, 100000, --writerbatchsize, 10, --writersleeptime, 50]
+Connection Creation Debug --> 2
+SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
+SLF4J: Defaulting to no-operation (NOP) logger implementation
+SLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
+
+Launching: 
+The local time is now September 07, 2023, 17:20:16
+I am a Publisher and WILL WRITE entries 
+Topic name is - notesFromMom
+Publishing in batches of 10
+Publisher will sleep this many milliseconds between each batch: 50
+Total number this publisher will write to topic is 1000000
+Publisher will create a new stream every time one has more entries than 100000
+
+[StreamLifecycleManager.foundResult()] true notesFromMom:1694123279
+DEBUG: about to create StreamWriter...
+[StreamWriter] now writing to stream called: notesFromMom:1694123279
+```
+Consumer:
+``` 
+owentaylor@Owens-MacBook-Pro RedisStreamWorkerGroupV2 % mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.20 --port 10400 --isconsumer true --howmanyworkers 2 --topic notesFromMom --resultskeyname notesFromMom:counter:GROUP_A --consumergroupname GROUP_A --consumerresponseisastream false"
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------< org.example:RedisStreamWorkerGroupV2 >----------------
+[INFO] Building RedisStreamWorkerGroupV2 1.0-SNAPSHOT
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ RedisStreamWorkerGroupV2 ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] Copying 0 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.1:compile (default-compile) @ RedisStreamWorkerGroupV2 ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- exec-maven-plugin:3.0.0:java (default-cli) @ RedisStreamWorkerGroupV2 ---
+[--host, 192.168.1.20, --port, 10400, --isconsumer, true, --howmanyworkers, 2, --topic, notesFromMom, --resultskeyname, notesFromMom:counter:GROUP_A, --consumergroupname, GROUP_A, --consumerresponseisastream, false]
+Connection Creation Debug --> 2
+SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
+SLF4J: Defaulting to no-operation (NOP) logger implementation
+SLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
+
+Launching: 
+The local time is now September 07, 2023, 17:17:31
+I am a Consumer and will consume entries 
+Topic name is - notesFromMom
+Results key name is - notesFromMom:counter:GROUP_A
+Consumer group name is - GROUP_A
+# members in group is - 2
+These consumers will increment this key as a counter to show work is being done: notesFromMom:counter:GROUP_A
+
+[StreamLifecycleManager.foundResult()] true notesFromMom:1694123279
+ConsumerGroup GROUP_A already exists -- continuing
+RedisStreamAdapter.namedGroupConsumerStartListening(--> worker0  <--): Actively Listening to Stream notesFromMom:1694123279
+RedisStreamAdapter.namedGroupConsumerStartListening(--> worker1  <--): Actively Listening to Stream notesFromMom:1694123279
+```
+
+Governor:
+``` 
+owentaylor@Owens-MacBook-Pro RedisStreamWorkerGroupV2 % mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.20 --port 10400 --topic notesFromMom --ispublisher false --isconsumer false --isgovernor true --governorsleepsecs 30"
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------< org.example:RedisStreamWorkerGroupV2 >----------------
+[INFO] Building RedisStreamWorkerGroupV2 1.0-SNAPSHOT
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ RedisStreamWorkerGroupV2 ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] Copying 0 resource
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.1:compile (default-compile) @ RedisStreamWorkerGroupV2 ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- exec-maven-plugin:3.0.0:java (default-cli) @ RedisStreamWorkerGroupV2 ---
+[--host, 192.168.1.20, --port, 10400, --topic, notesFromMom, --ispublisher, false, --isconsumer, false, --isgovernor, true, --governorsleepsecs, 30]
+Connection Creation Debug --> 2
+SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
+SLF4J: Defaulting to no-operation (NOP) logger implementation
+SLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
+
+Launching: 
+The local time is now September 07, 2023, 16:48:09
+***** TopicGovernor ( WILL NOT WRITE OR CONSUME EVENTS ) ******
+***** TopicGovernor will sleep for 30
+Topic name is - notesFromMom
+
+
+*** [TopicGovernor.manageTopics()]  No TopicPolicy Found for topic: notesFromMom Creating a new Topic policy in redis called topic_policy:notesFromMom
+[TopicGovernor.manageTopics()] found policy: topic_policy:notesFromMom
+[TopicGovernor.manageTopics()] If you want to expire a key using this TopicGovernor - modify the attributes in that policy in Redis
+```
+
+The streams grow in number as the Publisher continues to write and their size is kept near the target maximum length:
+![StateOfSystemScaling1](TopicExampleSystemState3.png)
+
+
+When all the interested consumers have processed the initial stream in the topic, 
+and it is no longer needed, it is time to enforce a policy that sets the TTL on the oldest stream in that topic - the policy object for the topic is modified:
+
+At this point, we have 3 streams in our Topic:
+
+``` 
+> LLEN notesFromMom
+(integer) 3
+> LRANGE notesFromMom 0 3
+1) "notesFromMom:1694124558"
+2) "notesFromMom:1694123988"
+3) "notesFromMom:1694123279"
+```
+
+If each stream length is capped at roughly 100K then a count above 110K is a good indicator that at least this consumerGroup is done:
+
+``` 
+> GET notesFromMom:counter:GROUP_A
+"114843"
+```
+Alternately, we can look for the evidence that the stream has been processed by the consumerGroup:
+``` 
+RedisStreamAdapter.namedGroupConsumerStartListening(--> worker199  <--): Actively Listening to Stream notesFromMom:1694123279
+[StreamLifecycleManager.foundResult()] true notesFromMom:1694123988
+Finished processing stream!
+Getting next Stream for topic...
+[StreamLifecycleManager.foundResult()] true notesFromMom:1694123988
+```
+
+So, with that result in mind - it is time to change the policy for the Topic: 
+NB: The Governor already populated the name of the oldest Stream for us:
+```
+> HSET topic_policy:notesFromMom ttl_seconds 60
+(integer) 0
+
+> HSET topic_policy:notesFromMom should_expire true
+(integer) 0
+
+> HGETALL topic_policy:notesFromMom
+1) "DO_NOT_EDIT:_expiry_of_oldest_stream_in_topic_has_begun"
+2) "true"
+3) "DO_NOT_EDIT:_target_stream_for_ttl"
+4) "notesFromMom:1694123279"
+5) "DO_NOT_EDIT:_timestamp_of_start_ttl_countdown"
+6) "1694125976"
+7) "should_expire"
+8) "true"
+9) "ttl_seconds"
+10) "60"
+```
+
+The governor reacts to the change :
+
+```
+[StreamLifecycleManager.foundResult()] true notesFromMom:1694123279
+[TopicGovernor.manageTopics()] found policy: topic_policy:notesFromMom
+[TopicGovernor.manageTopics()] If you want to expire a key using this TopicGovernor - modify the attributes in that policy in Redis
+
+*** [TopicGovernor.manageTopics()] Checking Expiry Status for notesFromMom
+
+*** [TopicGovernor.manageTopics()] redisTime - timeCountdownBegan == 30
+[TopicGovernor.manageTopics()] found policy: topic_policy:notesFromMom
+[TopicGovernor.manageTopics()] If you want to expire a key using this TopicGovernor - modify the attributes in that policy in Redis
+
+*** [TopicGovernor.manageTopics()] Checking Expiry Status for notesFromMom
+
+*** [TopicGovernor.manageTopics()] redisTime - timeCountdownBegan == 60
+[TopicGovernor.manageTopics()] found policy: topic_policy:notesFromMom
+[TopicGovernor.manageTopics()] If you want to expire a key using this TopicGovernor - modify the attributes in that policy in Redis
+
+*** [TopicGovernor.manageTopics()] Checking Expiry Status for notesFromMom
+
+*** [TopicGovernor.manageTopics()] redisTime - timeCountdownBegan == 90
+[StreamLifecycleManager.foundResult()] false notesFromMom:1694123279
+[StreamLifecycleManager.foundResult()] true notesFromMom:1694123988
+
+*** [TopicGovernor.manageTopics()] Expiry complete... new oldest Stream is notesFromMom:1694123988
+---->>>  NB: This program is not designed to force the next expiration TTL to trigger
+---->>> change the should_expire flag to true in the topic_policy:notesFromMom to trigger the next TTL
+[TopicGovernor.manageTopics()] found policy: topic_policy:notesFromMom
+```
+
+And once the key expires - the List that determines the topic is updated:
+
+``` 
+> LLEN notesFromMom
+(integer) 2
+
+> LRANGE notesFromMom 0 3
+1) "notesFromMom:1694124558"
+2) "notesFromMom:1694123988"
+```
+
