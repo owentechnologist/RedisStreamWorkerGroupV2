@@ -55,6 +55,7 @@ mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.
 Example Run of all three Topic-related Services:
 
 After initial start of the Consumer, Governor and Publisher we see these keys:
+Note that the List 'is' the topic and holds all the related Streams for that topic
 
 ![StateOfSystemAtStart1](TopicExampleSystemState1.png)
 
@@ -276,7 +277,7 @@ I think the above is cool and kind of the whole point, but, you can also run wit
 ```
 argument if you do not want to use the Topic and Topic Management features.
 
-#### Full Disclosure: I have stopped testing that operating mode.
+#### Full Disclosure: I have stopped testing this non-topic operating mode.
 
 Without --topic being set, the program only utilizes publishers and consumers and a single source stream.
 
